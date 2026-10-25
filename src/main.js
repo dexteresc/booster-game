@@ -28,12 +28,14 @@ let ticksSinceSnapshot = 0
 let unsentEvents = []
 let drawEvents = [] // sim/snapshot events not yet shown
 
-// Sim and networking run off a worker timer: background tabs throttle
-// requestAnimationFrame (and page timers), which would freeze a host's game
-// for everyone. Worker timers keep running. Drawing stays on rAF.
+// Visible: sim steps right before each draw, so every frame advances by the
+// same number of ticks (no judder). Hidden: background tabs throttle rAF,
+// which would freeze a host's game for everyone, so a worker timer takes over.
 const ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 1000 / 60)'])))
+ticker.onmessage = () => document.hidden && advance()
+
 let lastTick = performance.now()
-ticker.onmessage = () => {
+function advance() {
   const now = performance.now()
   const elapsed = Math.min((now - lastTick) / 1000, 0.25)
   lastTick = now
@@ -46,6 +48,7 @@ let lastFrame = performance.now()
 requestAnimationFrame(function frame(now) {
   const elapsed = Math.min((now - lastFrame) / 1000, 0.25)
   lastFrame = now
+  advance()
   draw(game, localId, drawEvents, elapsed)
   drawEvents = []
   requestAnimationFrame(frame)
