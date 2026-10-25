@@ -20,16 +20,10 @@ export function hostRoom(handlers) {
     const players = new Map() // conn → last message time
     let opened = false
 
-    const drop = (conn) => {
-      if (!players.delete(conn)) return
-      conn.close()
-      handlers.onLeave(conn.peer)
-    }
-
     peer.on('open', () => {
       opened = true
       setInterval(() => {
-        for (const [conn, seen] of players) if (Date.now() - seen > TIMEOUT_MS) drop(conn)
+        for (const [conn, seen] of players) if (Date.now() - seen > TIMEOUT_MS) dropPlayer(players, conn, handlers)
       }, 1000)
       resolve({
         code,
@@ -40,24 +34,33 @@ export function hostRoom(handlers) {
     })
     peer.on('error', (err) => (opened ? handlers.onError(err) : reject(err)))
 
-    peer.on('connection', (conn) => {
-      conn.on('open', () => {
-        if (!handlers.onJoin(conn.peer)) {
-          conn.send({ type: 'full' })
-          setTimeout(() => conn.close(), 500)
-          return
-        }
-        players.set(conn, Date.now())
-      })
-      conn.on('data', (msg) => {
-        if (!players.has(conn) || msg?.type !== 'input') return
-        players.set(conn, Date.now())
-        handlers.onInput(conn.peer, { left: msg.left === true, right: msg.right === true })
-      })
-      conn.on('close', () => drop(conn))
-      conn.on('error', handlers.onError)
-    })
+    peer.on('connection', (conn) => acceptPlayer(players, conn, handlers))
   })
+}
+
+// players: conn → last message time
+function acceptPlayer(players, conn, handlers) {
+  conn.on('open', () => {
+    if (!handlers.onJoin(conn.peer)) {
+      conn.send({ type: 'full' })
+      setTimeout(() => conn.close(), 500)
+      return
+    }
+    players.set(conn, Date.now())
+  })
+  conn.on('data', (msg) => {
+    if (!players.has(conn) || msg?.type !== 'input') return
+    players.set(conn, Date.now())
+    handlers.onInput(conn.peer, { left: msg.left === true, right: msg.right === true })
+  })
+  conn.on('close', () => dropPlayer(players, conn, handlers))
+  conn.on('error', handlers.onError)
+}
+
+function dropPlayer(players, conn, handlers) {
+  if (!players.delete(conn)) return
+  conn.close()
+  handlers.onLeave(conn.peer)
 }
 
 // handlers: { onSnapshot(snapshot), onClose(reason) }. onClose fires at most once.

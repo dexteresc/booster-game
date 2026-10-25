@@ -89,27 +89,30 @@ function updateFlags(game, config) {
   const { flagPickupRadius, capturesToWin } = config.rules
   for (const rocket of game.rockets) {
     if (!rocket.alive) continue
+    pickUpFlags(game, rocket, flagPickupRadius)
+    tryCapture(game, rocket, capturesToWin)
+  }
+}
 
-    for (const [name, team] of Object.entries(game.teams)) {
-      if (name === rocket.team || team.flagCarrier !== null) continue
-      const flag = flagHome(game.map.bases[name])
-      if (Math.hypot(rocket.x - flag.x, rocket.y - (flag.y - FLAG_HEIGHT / 2)) < flagPickupRadius) {
-        team.flagCarrier = rocket.id
-      }
-    }
+function pickUpFlags(game, rocket, radius) {
+  for (const [name, team] of Object.entries(game.teams)) {
+    if (name === rocket.team || team.flagCarrier !== null) continue
+    const flag = flagHome(game.map.bases[name])
+    if (Math.hypot(rocket.x - flag.x, rocket.y - (flag.y - FLAG_HEIGHT / 2)) < radius) team.flagCarrier = rocket.id
+  }
+}
 
-    // Capture: land on your own pad with their flag while yours is home.
-    const own = game.teams[rocket.team]
-    const carried = Object.values(game.teams).find((t) => t.flagCarrier === rocket.id)
-    if (carried && own.flagCarrier === null && rocket.landed && onPad(rocket, game.map.bases[rocket.team].pad)) {
-      carried.flagCarrier = null
-      own.score++
-      game.events.push({ type: 'capture', team: rocket.team })
-      if (own.score >= capturesToWin) {
-        game.winner = rocket.team
-        game.wonAt = game.time
-      }
-    }
+// Capture: land on your own pad with their flag while yours is home.
+function tryCapture(game, rocket, capturesToWin) {
+  const own = game.teams[rocket.team]
+  const carried = Object.values(game.teams).find((t) => t.flagCarrier === rocket.id)
+  if (!carried || own.flagCarrier !== null || !rocket.landed || !onPad(rocket, game.map.bases[rocket.team].pad)) return
+  carried.flagCarrier = null
+  own.score++
+  game.events.push({ type: 'capture', team: rocket.team })
+  if (own.score >= capturesToWin) {
+    game.winner = rocket.team
+    game.wonAt = game.time
   }
 }
 

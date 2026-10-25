@@ -4,6 +4,18 @@ import { COLOR } from './theme.js'
 
 export const TAU = Math.PI * 2
 
+// Matches the backing store to the CSS size at device resolution.
+export function fitCanvas(canvas) {
+  const dpr = devicePixelRatio || 1
+  const w = Math.round(canvas.clientWidth * dpr)
+  const h = Math.round(canvas.clientHeight * dpr)
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w
+    canvas.height = h
+  }
+  return { dpr, w, h }
+}
+
 // Lit-from-the-left cylinder shading across x0..x1. stops = [light, mid, shadow].
 export function shaded(ctx, x0, x1, [light, mid, shadow]) {
   const g = ctx.createLinearGradient(x0, 0, x1, 0)
@@ -28,8 +40,13 @@ export function additive(ctx, draw) {
   ctx.restore()
 }
 
+// Art is render-only, so Math.random is fine.
+export function rand(lo, hi) {
+  return lo + Math.random() * (hi - lo)
+}
+
 // Soft round light. Use inside additive().
-export function glowDot(ctx, x, y, radius, color, alpha = 1) {
+export function glowDot(ctx, x, y, { radius, color, alpha = 1 }) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, radius)
   g.addColorStop(0, color)
   g.addColorStop(1, 'rgba(0,0,0,0)')

@@ -15,7 +15,7 @@ export function stepCannons(game, config, dt) {
     cannon.cooldown -= dt
     const px = cannon.x
     const py = cannon.y - PIVOT_HEIGHT
-    const target = nearestEnemy(game.rockets, cannon.team, px, py, range)
+    const target = nearestEnemy(game.rockets, cannon.team, { x: px, y: py }, range)
     if (!target) continue
 
     let tx = target.x
@@ -45,12 +45,12 @@ export function stepCannons(game, config, dt) {
   }
 }
 
-function nearestEnemy(rockets, team, x, y, range) {
+function nearestEnemy(rockets, team, from, range) {
   let best = null
   let bestDist = range
   for (const r of rockets) {
     if (!r.alive || r.team === team) continue
-    const d = Math.hypot(r.x - x, r.y - y)
+    const d = Math.hypot(r.x - from.x, r.y - from.y)
     if (d <= bestDist) {
       best = r
       bestDist = d

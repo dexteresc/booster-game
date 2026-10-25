@@ -5,12 +5,22 @@ export function createLocalInput(surface, keys) {
   const down = new Set()
   const pointers = new Map() // pointerId → 'left' | 'right'
 
-  const sideOf = (e) => (e.clientX < innerWidth / 2 ? 'left' : 'right')
   function refresh() {
     const sides = [...pointers.values()]
     for (const side of ['left', 'right']) state[side] = keys[side].some((k) => down.has(k)) || sides.includes(side)
   }
 
+  listenKeys(down, refresh)
+  listenPointers(surface, pointers, refresh)
+  addEventListener('blur', () => {
+    down.clear()
+    pointers.clear()
+    refresh()
+  })
+  return state
+}
+
+function listenKeys(down, refresh) {
   addEventListener('keydown', (e) => {
     down.add(e.code)
     refresh()
@@ -24,12 +34,11 @@ export function createLocalInput(surface, keys) {
     }
     refresh()
   })
-  addEventListener('blur', () => {
-    down.clear()
-    pointers.clear()
-    refresh()
-  })
+}
 
+// pointers: pointerId → 'left' | 'right'
+function listenPointers(surface, pointers, refresh) {
+  const sideOf = (e) => (e.clientX < innerWidth / 2 ? 'left' : 'right')
   surface.addEventListener('pointerdown', (e) => {
     surface.setPointerCapture(e.pointerId)
     pointers.set(e.pointerId, sideOf(e))
@@ -47,6 +56,4 @@ export function createLocalInput(surface, keys) {
     })
   }
   surface.addEventListener('contextmenu', (e) => e.preventDefault())
-
-  return state
 }

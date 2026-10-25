@@ -12,7 +12,7 @@ const LASER_LENGTH = 24
 
 // isMe: outline the local player's rocket so it stands out in multiplayer.
 export function drawRocket(ctx, r, engineOffset, isMe = false) {
-  const { accent, hull } = TEAM[r.team]
+  const colors = TEAM[r.team]
   ctx.save()
   ctx.translate(r.x, r.y)
   ctx.rotate(r.angle)
@@ -21,8 +21,23 @@ export function drawRocket(ctx, r, engineOffset, isMe = false) {
     if (r.input.left) drawPlume(ctx, -engineOffset, 16)
     if (r.input.right) drawPlume(ctx, engineOffset, 16)
   })
+  drawLegs(ctx, colors.accent)
 
-  // Landing legs with ball feet
+  // Strut: its width shows the balance setting
+  ctx.fillStyle = chrome(ctx, -engineOffset, engineOffset)
+  ctx.fillRect(-engineOffset, 6, engineOffset * 2, 2.5)
+  ctx.strokeStyle = COLOR.outline
+  ctx.lineWidth = 0.8
+  for (const x of [-engineOffset, engineOffset]) drawPod(ctx, x, colors)
+
+  drawHull(ctx, colors, isMe)
+  drawAntenna(ctx, colors.accent)
+  drawPorthole(ctx)
+  ctx.restore()
+}
+
+// Landing legs with ball feet
+function drawLegs(ctx, accent) {
   ctx.strokeStyle = chrome(ctx, -13, 13)
   ctx.lineWidth = 1.6
   ctx.lineCap = 'round'
@@ -38,16 +53,9 @@ export function drawRocket(ctx, r, engineOffset, isMe = false) {
     ctx.arc(fx, fy - 2, 2, 0, TAU)
     ctx.fill()
   }
+}
 
-  // Strut: its width shows the balance setting
-  ctx.fillStyle = chrome(ctx, -engineOffset, engineOffset)
-  ctx.fillRect(-engineOffset, 6, engineOffset * 2, 2.5)
-
-  ctx.strokeStyle = COLOR.outline
-  ctx.lineWidth = 0.8
-  for (const x of [-engineOffset, engineOffset]) drawPod(ctx, x, Math.sign(x), accent, hull)
-
-  // Hull
+function drawHull(ctx, { accent, hull }, isMe) {
   ctx.fillStyle = shaded(ctx, -8, 8, hull)
   ctx.fill(BODY)
   ctx.save()
@@ -66,8 +74,9 @@ export function drawRocket(ctx, r, engineOffset, isMe = false) {
   ctx.strokeStyle = isMe ? COLOR.meOutline : COLOR.outline
   ctx.lineWidth = isMe ? 1.5 : 1
   ctx.stroke(BODY)
+}
 
-  // Antenna
+function drawAntenna(ctx, accent) {
   ctx.strokeStyle = chrome(ctx, -1, 1)
   ctx.lineWidth = 0.8
   ctx.beginPath()
@@ -78,8 +87,10 @@ export function drawRocket(ctx, r, engineOffset, isMe = false) {
   ctx.beginPath()
   ctx.arc(0, -31.5, 1.3, 0, TAU)
   ctx.fill()
+}
 
-  // Porthole: chrome ring, dark glass
+// Chrome ring, dark glass
+function drawPorthole(ctx) {
   ctx.fillStyle = chrome(ctx, -4, 4)
   ctx.beginPath()
   ctx.arc(0, -10, 4.2, 0, TAU)
@@ -92,12 +103,11 @@ export function drawRocket(ctx, r, engineOffset, isMe = false) {
   ctx.beginPath()
   ctx.ellipse(-1, -11, 0.8, 1.3, -0.5, 0, TAU)
   ctx.fill()
-
-  ctx.restore()
 }
 
-// Bullet-nosed booster with a swept fin on its outer side (side = -1 left, 1 right).
-function drawPod(ctx, x, side, accent, hull) {
+// Bullet-nosed booster with a swept fin on its outer side.
+function drawPod(ctx, x, { accent, hull }) {
+  const side = Math.sign(x) // -1 left, 1 right
   ctx.fillStyle = chrome(ctx, x - 4, x + 4)
   ctx.beginPath()
   ctx.moveTo(x - 2.5, 12)
@@ -140,16 +150,13 @@ function drawPlume(ctx, x, y) {
   ctx.moveTo(x - 4.5, y)
   ctx.quadraticCurveTo(x, y + len * 2, x + 4.5, y)
   ctx.fill()
-  glowDot(ctx, x, y + 2, 10, COLOR.flame[1], 0.4)
+  glowDot(ctx, x, y + 2, { radius: 10, color: COLOR.flame[1], alpha: 0.4 })
 }
 
 // Ray-gun turret. firing: show a muzzle flash this frame.
 export function drawCannon(ctx, c, firing, clock) {
   const { accent, laser } = TEAM[c.team]
   const p = cannonPedestal(c)
-  const px = c.x
-  const py = c.y - PIVOT_HEIGHT
-
   ctx.fillStyle = shaded(ctx, p.x, p.x + p.w, COLOR.gunmetal)
   ctx.fillRect(p.x, p.y, p.w, p.h)
   ctx.fillStyle = accent
@@ -157,9 +164,15 @@ export function drawCannon(ctx, c, firing, clock) {
   ctx.fillStyle = chrome(ctx, p.x, p.x + p.w)
   ctx.fillRect(p.x, p.y, p.w, 1.5)
 
-  // Ribbed barrel with an emitter bulb
+  drawBarrel(ctx, c, laser, firing)
+  drawDome(ctx, c, accent)
+  drawOrbit(ctx, c, accent, clock)
+}
+
+// Ribbed barrel with an emitter bulb
+function drawBarrel(ctx, c, laser, firing) {
   ctx.save()
-  ctx.translate(px, py)
+  ctx.translate(c.x, c.y - PIVOT_HEIGHT)
   ctx.rotate(c.aim)
   ctx.fillStyle = chrome(ctx, 0, BARREL_LENGTH)
   ctx.fillRect(0, -1.8, BARREL_LENGTH - 3, 3.6)
@@ -168,36 +181,43 @@ export function drawCannon(ctx, c, firing, clock) {
   ctx.beginPath()
   ctx.arc(BARREL_LENGTH - 1, 0, 2.6, 0, TAU)
   ctx.fill()
-  additive(ctx, () => glowDot(ctx, BARREL_LENGTH - 1, 0, firing ? 16 : 7, laser, firing ? 1 : 0.6))
+  additive(ctx, () => glowDot(ctx, BARREL_LENGTH - 1, 0, { radius: firing ? 16 : 7, color: laser, alpha: firing ? 1 : 0.6 }))
   ctx.restore()
+}
 
-  // Dome with glowing sensor eye
-  ctx.fillStyle = shaded(ctx, px - 11, px + 11, COLOR.gunmetal)
+// Dome with glowing sensor eye
+function drawDome(ctx, c, accent) {
+  const top = cannonPedestal(c).y
+  const eyeY = c.y - PIVOT_HEIGHT + 1
+  ctx.fillStyle = shaded(ctx, c.x - 11, c.x + 11, COLOR.gunmetal)
   ctx.strokeStyle = COLOR.outline
   ctx.lineWidth = 1
   ctx.beginPath()
-  ctx.arc(px, p.y, 11, Math.PI, 0)
+  ctx.arc(c.x, top, 11, Math.PI, 0)
   ctx.fill()
   ctx.stroke()
-  additive(ctx, () => glowDot(ctx, px, py + 1, 6, accent, 0.9))
+  additive(ctx, () => glowDot(ctx, c.x, eyeY, { radius: 6, color: accent, alpha: 0.9 }))
   ctx.fillStyle = accent
   ctx.beginPath()
-  ctx.arc(px, py + 1, 1.8, 0, TAU)
+  ctx.arc(c.x, eyeY, 1.8, 0, TAU)
   ctx.fill()
+}
 
-  // Atom orbit with a circling electron
+// Atom orbit with a circling electron
+function drawOrbit(ctx, c, accent, clock) {
+  const cy = cannonPedestal(c).y - 5
   const tilt = -0.35
   ctx.strokeStyle = accent
   ctx.lineWidth = 0.7
   ctx.beginPath()
-  ctx.ellipse(px, p.y - 5, 15, 4, tilt, 0, TAU)
+  ctx.ellipse(c.x, cy, 15, 4, tilt, 0, TAU)
   ctx.stroke()
   const a = clock * 3
   const ex = Math.cos(a) * 15
   const ey = Math.sin(a) * 4
-  additive(ctx, () =>
-    glowDot(ctx, px + ex * Math.cos(tilt) - ey * Math.sin(tilt), p.y - 5 + ex * Math.sin(tilt) + ey * Math.cos(tilt), 4, accent),
-  )
+  const x = c.x + ex * Math.cos(tilt) - ey * Math.sin(tilt)
+  const y = cy + ex * Math.sin(tilt) + ey * Math.cos(tilt)
+  additive(ctx, () => glowDot(ctx, x, y, { radius: 4, color: accent }))
 }
 
 export function drawLaser(ctx, b) {
