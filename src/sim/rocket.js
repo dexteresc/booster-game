@@ -5,7 +5,7 @@ import { solidAt, wrapAngle } from './geometry.js'
 const HULL = [[0, -24], [-8, -10], [8, -10], [-8, 0], [8, 0], [-8, 8], [8, 8]]
 export const FEET = [[-13, 18], [13, 18]]
 export const FOOT_Y = 18
-const MAX_FOOT_SINK = 8 // a foot deeper than this hit a wall side, not a top surface
+const MAX_FOOT_SINK = 8 // a foot deeper than this (beyond this tick's fall) hit a wall side, not a top surface
 
 export const NO_INPUT = Object.freeze({ left: false, right: false })
 
@@ -43,7 +43,7 @@ export function stepRocket(r, map, config, dt) {
   r.x += r.vx * dt
   r.y += r.vy * dt
 
-  return resolveContact(r, map, config.rocket)
+  return resolveContact(r, map, config.rocket.safeLandingAngle, dt)
 }
 
 function toWorld(r, [lx, ly]) {
@@ -52,21 +52,22 @@ function toWorld(r, [lx, ly]) {
   return [r.x + lx * c - ly * s, r.y + lx * s + ly * c]
 }
 
-function resolveContact(r, map, { safeLandingSpeed, safeSlideSpeed, safeLandingAngle }) {
+function resolveContact(r, map, safeLandingAngle, dt) {
   r.landed = false
   if (HULL.some((p) => solidAt(map, ...toWorld(r, p)))) return true
 
+  const maxSink = MAX_FOOT_SINK + Math.max(0, r.vy) * dt
   let surface = Infinity
   for (const p of FEET) {
     const [x, y] = toWorld(r, p)
     const rect = solidAt(map, x, y)
     if (!rect) continue
-    if (rect.water || y - rect.y > MAX_FOOT_SINK) return true // sea is never a landing spot
+    if (rect.water || y - rect.y > maxSink) return true // sea is never a landing spot
     surface = Math.min(surface, rect.y)
   }
   if (surface === Infinity) return false
 
-  if (r.vy > safeLandingSpeed || Math.abs(r.vx) > safeSlideSpeed || Math.abs(r.angle) > safeLandingAngle) return true
+  if (Math.abs(r.angle) > safeLandingAngle) return true
   Object.assign(r, { y: surface - FOOT_Y, angle: 0, spin: 0, vx: 0, vy: 0, landed: true })
   return false
 }

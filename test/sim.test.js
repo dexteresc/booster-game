@@ -57,19 +57,26 @@ function runUntil({ game, config }, done, seconds) {
   assert(t.r.alive && t.r.landed, 'gentle drop should land')
 }
 
-// Slight lean while drifting sideways still lands.
+// Sloppy landing — very fast, sliding, leaning — still lands on its feet.
 {
   const t = setup()
-  Object.assign(t.r, { x: 1000, y: 870, angle: 0.3, vx: 150, vy: 120, landed: false })
+  Object.assign(t.r, { x: 1000, y: 870, angle: 0.8, vx: 1500, vy: 1500, landed: false })
   run(t, 0.5)
-  assert(t.r.alive && t.r.landed, 'leaning, drifting landing should survive')
+  assert(t.r.alive && t.r.landed, 'sloppy landing should survive')
 }
 
-// Heavily tilted landing crashes.
+// Landing on the side crashes.
 {
   const t = setup()
-  Object.assign(t.r, { x: 1000, y: 870, angle: 0.8, landed: false })
-  assert(runUntil(t, () => !t.r.alive, 1), 'tilted landing should crash')
+  Object.assign(t.r, { x: 1000, y: 870, angle: 1.3, landed: false })
+  assert(runUntil(t, () => !t.r.alive, 1), 'side landing should crash')
+}
+
+// Nose-first touchdown crashes, however gentle.
+{
+  const t = setup()
+  Object.assign(t.r, { x: 1000, y: 900 - 24 - 5, angle: Math.PI, landed: false })
+  assert(runUntil(t, () => !t.r.alive, 1), 'nose touchdown should crash')
 }
 
 // Even a gentle touchdown on water crashes.
@@ -80,11 +87,11 @@ function runUntil({ game, config }, done, seconds) {
   assert(runUntil(t, () => !t.r.alive, 1), 'landing on water should crash')
 }
 
-// Hard landing crashes, respawns after respawnSeconds.
+// Crash respawns after respawnSeconds.
 {
   const t = setup()
-  Object.assign(t.r, { x: 1000, y: 500, landed: false })
-  assert(runUntil(t, () => !t.r.alive, 3), 'fast drop should crash')
+  Object.assign(t.r, { x: 1000, y: 870, angle: Math.PI, landed: false })
+  assert(runUntil(t, () => !t.r.alive, 3), 'upside-down landing should crash')
   const deadAt = t.game.time
   assert(runUntil(t, () => t.r.alive, 5), 'should respawn')
   assert(Math.abs(t.game.time - deadAt - t.config.rules.respawnSeconds) < 0.02, 'respawn delay')
@@ -108,7 +115,7 @@ function runUntil({ game, config }, done, seconds) {
   assert.equal(t.game.teams.red.flagCarrier, null, 'flag returns after capture')
 
   grab()
-  t.r.vy = 2000
+  Object.assign(t.r, { angle: Math.PI, landed: false })
   assert(runUntil(t, () => !t.r.alive, 1), 'should crash')
   assert.equal(t.game.teams.red.flagCarrier, null, 'flag returns when carrier dies')
 }

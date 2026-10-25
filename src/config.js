@@ -13,9 +13,7 @@ export const config = {
     inertia: 600, // resistance to spinning
     spinDamping: 1.5, // how fast spin bleeds off
     drag: 0.15, // linear air drag
-    safeLandingSpeed: 160, // downward speed at touchdown above this = crash
-    safeSlideSpeed: 220, // sideways speed at touchdown above this = crash
-    safeLandingAngle: 0.6, // ~35°, feet touching more tilted than this = crash
+    safeLandingAngle: 1.0, // ~57°, feet touching more tilted than this = crash. Any speed is fine; nose/side contact always crashes
     hitRadius: 14, // bullet hit radius
   },
 
