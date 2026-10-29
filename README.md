@@ -27,7 +27,7 @@ npm run lint
 | --- | --- |
 | `src/sim/` | Game rules. Pure, no DOM: same inputs → same state |
 | `src/art/`, `src/render.js` | Drawing |
-| `src/net.js` | Multiplayer |
+| `src/net.js`, `src/snapshot.js`, `src/remote-game.js` | Multiplayer: connections, the binary snapshot format, joiner-side smoothing |
 | `src/maps/*.json` | Maps, one file each. Picked up automatically |
 | `src/editor/` | Map editor |
 | `worker/` | Cloudflare Worker for TURN relay credentials |

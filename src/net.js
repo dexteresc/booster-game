@@ -1,10 +1,15 @@
 import { Peer } from 'peerjs'
 
 // Peer-to-peer over WebRTC. The public PeerJS server only brokers the handshake;
-// game traffic goes browser to browser. The host runs the only real sim:
-// clients connect with their name and send { type: 'input', left, right };
-// host sends { type: 'snapshot', ... } in game and { type: 'lobby', ... } while picking teams.
+// game traffic goes browser to browser. The host runs the only real sim.
+// Raw data channel, every byte counts when it goes through the paid TURN relay:
+//   joiner → host  1 byte of input (1 left engine, 2 right engine), on change and every second as a heartbeat
+//   host → joiner  binary snapshots (src/snapshot.js), JSON text for the rest:
+//                  { type: 'roster' | 'lobby' | 'full' | 'version', ... }
 const ID_PREFIX = 'booster-game-'
+// Bump when the messages change: host and joiner must run the same version.
+const PROTOCOL = 2
+const INPUT_HEARTBEAT_MS = 1000
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 // Closing a tab doesn't always fire 'close' on the other side, so silence = gone.
 const TIMEOUT_MS = 5000
@@ -59,8 +64,10 @@ export async function hostRoom(handlers) {
       }, 1000)
       resolve({
         code,
+        // msg: ArrayBuffer (snapshot) or an object, sent as JSON text.
         broadcast: (msg) => {
-          for (const conn of players.keys()) conn.send(msg)
+          const data = msg instanceof ArrayBuffer ? msg : JSON.stringify(msg)
+          for (const conn of players.keys()) conn.send(data)
         },
       })
     })
@@ -73,20 +80,24 @@ export async function hostRoom(handlers) {
 // players: conn → last message time
 function acceptPlayer(players, conn, handlers) {
   conn.on('open', () => {
-    if (!handlers.onJoin(conn.peer, cleanName(conn.metadata?.name))) {
-      conn.send({ type: 'full' })
-      setTimeout(() => conn.close(), 500)
-      return
-    }
-    players.set(conn, Date.now())
+    // Older joiners use PeerJS's JSON channel and don't send a protocol; they just see the host leave.
+    if (conn.serialization !== 'raw' || conn.metadata?.protocol !== PROTOCOL) refuse(conn, 'version')
+    else if (!handlers.onJoin(conn.peer, cleanName(conn.metadata?.name))) refuse(conn, 'full')
+    else players.set(conn, Date.now())
   })
   conn.on('data', (msg) => {
-    if (!players.has(conn) || msg?.type !== 'input') return
+    if (!players.has(conn) || !(msg instanceof ArrayBuffer) || msg.byteLength !== 1) return // not a player, or not input
     players.set(conn, Date.now())
-    handlers.onInput(conn.peer, { left: msg.left === true, right: msg.right === true })
+    const bits = new Uint8Array(msg)[0]
+    handlers.onInput(conn.peer, { left: (bits & 1) !== 0, right: (bits & 2) !== 0 })
   })
   conn.on('close', () => dropPlayer(players, conn, handlers))
   conn.on('error', handlers.onError)
+}
+
+function refuse(conn, type) {
+  if (conn.serialization === 'raw') conn.send(JSON.stringify({ type }))
+  setTimeout(() => conn.close(), 500)
 }
 
 function dropPlayer(players, conn, handlers) {
@@ -99,7 +110,7 @@ function dropPlayer(players, conn, handlers) {
 // (strict NAT, mobile data, relay down), WebRTC can stay "checking" without ever failing.
 const JOIN_TIMEOUT_MS = 15000
 
-// handlers: { onSnapshot(snapshot), onLobby(lobby), onClose(reason) }. onClose fires at most once, only after joining.
+// handlers: { onSnapshot(ArrayBuffer), onRoster(roster), onLobby(lobby), onClose(reason) }. onClose fires at most once, only after joining.
 export async function joinRoom(code, name, handlers) {
   const options = await peerOptions()
   return new Promise((resolve, reject) => {
@@ -118,19 +129,33 @@ export async function joinRoom(code, name, handlers) {
 
     peer.on('error', onError)
     peer.on('open', (id) => {
-      const conn = peer.connect(ID_PREFIX + code, { serialization: 'json', metadata: { name } })
+      const conn = peer.connect(ID_PREFIX + code, { serialization: 'raw', metadata: { name, protocol: PROTOCOL } })
       conn.on('error', onError) // failing before open emits 'error' but never 'close'
       conn.on('open', () => {
         clearTimeout(timer)
         link = watchHost(peer, conn, handlers)
         resolve({
           id,
-          sendInput: ({ left, right }) => conn.open && conn.send({ type: 'input', left, right }),
+          sendInput: inputSender(conn),
           leave: (reason) => link.close(reason),
         })
       })
     })
   })
+}
+
+// Sends only changes, plus a heartbeat so the host knows we're still here.
+function inputSender(conn) {
+  let sent = -1
+  let sentAt = 0
+  return ({ left, right }) => {
+    const bits = (left ? 1 : 0) | (right ? 2 : 0)
+    const now = performance.now()
+    if (!conn.open || (bits === sent && now - sentAt < INPUT_HEARTBEAT_MS)) return
+    conn.send(new Uint8Array([bits]).buffer)
+    sent = bits
+    sentAt = now
+  }
 }
 
 // Connected: route the host's messages; silence means the host is gone.
@@ -147,12 +172,25 @@ function watchHost(peer, conn, handlers) {
   const watchdog = setInterval(() => {
     if (Date.now() - lastSeen > TIMEOUT_MS) close('Lost connection to host')
   }, 1000)
-  conn.on('data', (msg) => {
+  conn.on('data', (data) => {
     lastSeen = Date.now()
-    if (msg?.type === 'full') close('Room is full')
-    else if (msg?.type === 'snapshot') handlers.onSnapshot(msg)
+    const msg = data instanceof ArrayBuffer ? null : parseJson(data)
+    if (data instanceof ArrayBuffer) handlers.onSnapshot(data)
+    else if (msg?.type === 'roster') handlers.onRoster(msg)
     else if (msg?.type === 'lobby') handlers.onLobby(msg)
+    else if (msg?.type === 'full') close('Room is full')
+    else close('Host runs another version of the game. Reload both pages')
   })
   conn.on('close', () => close('Host left'))
   return { close }
+}
+
+// Text from the host that isn't JSON comes from a host on another version.
+function parseJson(text) {
+  try {
+    return JSON.parse(text)
+  } catch (err) {
+    console.error('Unreadable message from host', text, err)
+    return null
+  }
 }

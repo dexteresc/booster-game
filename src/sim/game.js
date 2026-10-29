@@ -3,7 +3,7 @@ import { cannonPedestal, stepBullets, stepCannons } from './cannon.js'
 
 // Pure simulation: no DOM, no randomness, fixed timestep. Same inputs → same
 // state, so it can run unchanged on a server or in lockstep between peers.
-// All state is plain data (JSON-serializable) for snapshots over the network.
+// All state is plain data; src/snapshot.js packs what joiners need into bytes.
 
 export const FLAG_HEIGHT = 40
 // PvE: players are blue, the computer is red and only has turrets. PvP: both teams are players.
@@ -51,12 +51,6 @@ export function addPlayer(game, { id, team, name = '' }) {
 export function removePlayer(game, id) {
   for (const team of Object.values(game.teams)) if (team.flagCarrier === id) team.flagCarrier = null
   game.rockets = game.rockets.filter((r) => r.id !== id)
-}
-
-// Everything that changes during play (map is static and rebuilt by each client).
-export function snapshotOf(game) {
-  const { time, winner, wonAt, teams, rockets, cannons, bullets } = game
-  return { time, winner, wonAt, teams, rockets, cannons, bullets }
 }
 
 // Foot of the flag pole when the flag is home.

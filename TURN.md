@@ -20,14 +20,20 @@ Peer-to-peer over WebRTC with [PeerJS](https://peerjs.com). No game server. Code
    Worker (`worker/turn.js`). The TURN secret lives only in the Worker.
 2. **Host.** Invite (PvE) or picking PvP registers `booster-game-<CODE>` on the PeerJS server.
    The link is `…/#<CODE>`.
-3. **Join.** The joiner enters a name and looks up that ID, sending the name as connection metadata;
-   the PeerJS server passes the WebRTC handshake between the two.
+3. **Join.** The joiner enters a name and looks up that ID, sending `{ name, protocol }` as connection metadata;
+   the PeerJS server passes the WebRTC handshake between the two. A different `PROTOCOL` (other game version)
+   is refused with `{ type: 'version' }`.
 4. **Connect.** Browsers try direct first (STUN finds public addresses). If NAT or a firewall blocks that
    (mobile data, office wifi, strict routers), traffic goes through Cloudflare's TURN relay.
 5. **Lobby (PvP).** The host sends `{ type: 'lobby', players, mapName }` on every change and once a second.
-6. **Play.** The host runs the only sim. Joiners send `{ type: 'input', left, right }` every frame;
-   the host sends `{ type: 'snapshot', mapName, mode, … }` 30 times a second, so joiners follow map changes.
-   Room full → `{ type: 'full' }`.
+6. **Play.** The host runs the only sim. Raw data channel, kept small since relayed bytes cost money:
+   - Joiners send 1 byte of input when it changes, and once a second as a heartbeat.
+   - The host sends `{ type: 'roster', mapName, mode, players }` when a match starts or players change,
+     and a binary snapshot (`src/snapshot.js`, ~70 bytes for a 1v1) 20 times a second.
+   - Joiners draw 0.1 s behind the newest snapshot and blend between snapshots (`src/remote-game.js`).
+   - Room full → `{ type: 'full' }`.
+
+   A 1v1 is roughly 0.2 MB/min through the relay, packet overhead included (was ~2 MB/min with JSON at 30 Hz).
 
 ### Timeouts
 

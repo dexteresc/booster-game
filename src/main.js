@@ -1,16 +1,18 @@
 import { config } from './config.js'
 import { DEFAULT_MAP, maps } from './maps/index.js'
-import { addPlayer, createGame, maxPlayersPerTeam, removePlayer, snapshotOf, step } from './sim/game.js'
+import { addPlayer, createGame, maxPlayersPerTeam, removePlayer, step } from './sim/game.js'
 import { createLocalInput } from './input.js'
 import { createRenderer } from './render.js'
 import { createTuningPanel } from './tuning.js'
 import { cleanName, hostRoom, joinRoom } from './net.js'
 import { loadName, showMenu } from './menu.js'
 import { renderLobby, switchTeam, teamFor } from './lobby.js'
+import { encodeSnapshot } from './snapshot.js'
+import { createRemoteGame } from './remote-game.js'
 
 const LOCAL_ID = 'host'
 const RESTART_DELAY = 4
-const SNAPSHOT_EVERY = 4 // ticks → 30 Hz at 120 tick rate
+const SNAPSHOT_EVERY = 6 // ticks → 20 Hz at 120 tick rate. Joiners smooth between them (remote-game.js)
 const LOBBY_EVERY = 1 // seconds between lobby broadcasts; they also tell joiners the host is still there
 
 const $ = (id) => document.getElementById(id)
@@ -27,6 +29,8 @@ let players = [] // host: everyone in the room, [{ id, name, team }]. PvE: all b
 let localId = LOCAL_ID
 let room = null // set while hosting: { code, broadcast }
 let client = null // set while joined: { id, sendInput, leave }
+let remote = null // set while joined: the host's game as this browser shows it
+let rosterKey = null // host: what joiners were last told about who's in the match
 const remoteInputs = {}
 let pending = 0
 let ticksSinceSnapshot = 0
@@ -56,6 +60,10 @@ requestAnimationFrame(function frame(now) {
   const elapsed = Math.min((now - lastFrame) / 1000, 0.25)
   lastFrame = now
   advance()
+  if (remote) {
+    drawEvents.push(...remote.show(now / 1000))
+    game = remote.game
+  }
   if (game) draw(game, localId, drawEvents, elapsed)
   drawEvents = []
   requestAnimationFrame(frame)
@@ -72,7 +80,8 @@ function runSim(elapsed, local) {
     if (!room) continue
     unsentEvents.push(...game.events)
     if (++ticksSinceSnapshot < SNAPSHOT_EVERY) continue
-    room.broadcast({ type: 'snapshot', mapName, mode, ...snapshotOf(game), events: unsentEvents })
+    sendRoster()
+    room.broadcast(encodeSnapshot(game, unsentEvents))
     ticksSinceSnapshot = 0
     unsentEvents = []
   }
@@ -95,7 +104,17 @@ async function start(pickedMode, name) {
 
 function newGame() {
   game = createGame(maps[mapName], players, mode)
+  rosterKey = null // joiners who came in during the lobby haven't heard it yet
   refreshControls()
+}
+
+// Snapshots list rockets by roster order, so joiners hear who's who (and the map) first, and again on any change.
+function sendRoster() {
+  const roster = { type: 'roster', mapName, mode, players: game.rockets.map(({ id, name, team }) => ({ id, name, team })) }
+  const key = JSON.stringify(roster)
+  if (key === rosterKey) return
+  room.broadcast(roster)
+  rosterKey = key
 }
 
 // The map in the URL if it's made for this mode, else the first one that is.
@@ -256,8 +275,10 @@ async function join(code, name) {
   ui.menu.hidden = true
   showStatus(`Joining ${code}…`)
   const onLobby = (lobby) => showJoinedLobby(lobby, code)
+  const onSnapshot = (buffer) => remote.snapshot(buffer, performance.now() / 1000)
+  remote = createRemoteGame()
   try {
-    client = await joinRoom(code, cleanName(name), { onSnapshot, onLobby, onClose: backToMenu })
+    client = await joinRoom(code, cleanName(name), { onSnapshot, onRoster, onLobby, onClose: backToMenu })
   } catch (err) {
     console.error(`Joining ${code} failed`, err)
     backToMenu(`Couldn't join ${code}: ${err.message}`)
@@ -268,22 +289,19 @@ async function join(code, name) {
   showStatus(`Joined room ${code}`)
 }
 
-// The host's map and mode come with every snapshot, so a joiner follows map changes.
-function onSnapshot(snapshot) {
-  if (game?.mapName !== snapshot.mapName) {
-    if (!maps[snapshot.mapName]) {
-      client.leave(`Host is playing map "${snapshot.mapName}", which this version doesn't have. Reload to update`)
-      return
-    }
-    game = createGame(maps[snapshot.mapName], [], snapshot.mode)
+// A match started, or players changed. The roster carries the host's map and mode, so a joiner follows map changes.
+function onRoster(roster) {
+  if (!maps[roster.mapName]) {
+    client.leave(`Host is playing map "${roster.mapName}", which this version doesn't have. Reload to update`)
+    return
   }
   ui.lobby.hidden = true
-  Object.assign(game, snapshot)
-  drawEvents.push(...snapshot.events)
+  remote.roster(maps[roster.mapName], roster)
 }
 
 function showJoinedLobby(lobby, code) {
   if (!Array.isArray(lobby.players)) throw new Error(`Lobby from host has no player list: ${JSON.stringify(lobby)}`)
+  remote.end()
   game = null
   renderLobby(ui.lobby, lobby, { localId, code, actions: null })
 }
@@ -291,6 +309,7 @@ function showJoinedLobby(lobby, code) {
 // reason: shown in the status line; left out keeps what's there.
 function backToMenu(reason) {
   client = null
+  remote = null
   game = null
   mode = null
   localId = LOCAL_ID
