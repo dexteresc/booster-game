@@ -9,6 +9,14 @@ export const TEAM = {
   red: { label: 'RED', accent: '#e0312b', hull: GUNMETAL, laser: '#3dff5a' },
 }
 
+// A map's biome. blocks: what the editor offers, in order. hills: backdrop shape (art/hills.js).
+// tint: multiplied over the hills. rain: chance of a rainy game.
+export const BIOMES = {
+  desert: { label: 'Desert', blocks: ['rock', 'water', 'concrete', 'metal', 'hazard', 'panel', 'glass'], hills: 'butte', tint: null, rain: 0.3 },
+  jungle: { label: 'Jungle', blocks: ['rock', 'water', 'planks', 'concrete', 'metal', 'hazard', 'glass'], hills: 'canopy', tint: '#8fcf8a', rain: 0.6 },
+  nautic: { label: 'Nautic', blocks: ['rock', 'water', 'hull', 'planks', 'metal', 'hazard', 'glass'], hills: 'island', tint: '#9ac0dc', rain: 0.45 },
+}
+
 export const COLOR = {
   outline: '#2a2420',
   meOutline: '#ffffff', // local player's rocket
@@ -40,6 +48,10 @@ export const COLOR = {
   seamLit: 'rgba(255,255,255,0.14)',
   lip: 'rgba(255,255,255,0.35)', // lit top edge of blocks
   rivetDark: 'rgba(0,0,0,0.4)',
+  rust: 'rgba(170,80,30,0.45)', // streaks down ship hulls
+  moss: '#6fae4e',
+  barnacle: 'rgba(230,235,230,0.55)',
+  coral: '#ff8a5c',
   ripple: 'rgba(255,220,190,0.12)',
   foam: 'rgba(255,240,220,0.7)',
   strata: 'rgba(0,0,0,0.12)',
@@ -52,7 +64,7 @@ export const COLOR = {
   textShadow: 'rgba(0,0,0,0.6)',
 }
 
-// Time of day. Each game picks one at random, with or without rain.
+// Time of day. Each game picks one at random, with or without rain (odds per biome).
 // suns: x, y as a share of map size; glow: halo strength.
 export const SKIES = {
   dusk: {
@@ -69,8 +81,13 @@ export const SKIES = {
     water: ['rgba(20,30,70,0.2)', 'rgba(6,10,28,0.8)'], // tint over the reflection: surface → depth
     waterLine: 'rgba(255,210,170,0.6)',
     glint: '#ffe2b0',
-    rock: ['#c98a55', '#9a5a36', '#6e3c26'], // lit top → base
-    rockLip: '#e8b07a',
+    ground: {
+      // body: lit top → base. lip: the top edge
+      desert: { body: ['#c98a55', '#9a5a36', '#6e3c26'], lip: '#e8b07a' },
+      jungle: { body: ['#8c8a5e', '#5a5a40', '#38382a'], lip: '#b8b85a' },
+      nautic: { body: ['#8a7e84', '#564e58', '#332e36'], lip: '#f0c8b0' },
+    },
+    wood: ['#d49060', '#9a5c34', '#5e3620'], // planks: light, mid, dark
     concrete: ['#c2aa9c', '#8f7a72', '#5a4a47'], // lit top → base
     metal: ['#b49690', '#5f5056', '#2c252b'],
     panel: ['#ffe2bf', '#d9b48c', '#9a7556'], // cream panels: lit, base, shade
@@ -92,8 +109,12 @@ export const SKIES = {
     water: ['rgba(30,110,150,0.25)', 'rgba(10,40,70,0.8)'],
     waterLine: 'rgba(255,255,255,0.7)',
     glint: '#ffffff',
-    rock: ['#e2a66c', '#b8743f', '#8a5030'],
-    rockLip: '#f6cf98',
+    ground: {
+      desert: { body: ['#e2a66c', '#b8743f', '#8a5030'], lip: '#f6cf98' },
+      jungle: { body: ['#8ea47a', '#5f7050', '#3d4a36'], lip: '#a8d76a' },
+      nautic: { body: ['#7d8d94', '#4e5c63', '#303a40'], lip: '#d6eef2' },
+    },
+    wood: ['#d8a266', '#a86f3c', '#6e4524'],
     concrete: ['#dcd6cc', '#aaa49b', '#78726b'],
     metal: GUNMETAL,
     panel: ['#fff8e6', '#efe4c8', '#c9bb9a'],
@@ -115,8 +136,12 @@ export const SKIES = {
     water: ['rgba(10,15,40,0.2)', 'rgba(2,4,12,0.85)'],
     waterLine: 'rgba(170,190,255,0.5)',
     glint: '#cfe0ff',
-    rock: ['#6a6488', '#47405e', '#2a2540'],
-    rockLip: '#a6a8d8',
+    ground: {
+      desert: { body: ['#6a6488', '#47405e', '#2a2540'], lip: '#a6a8d8' },
+      jungle: { body: ['#4c5a62', '#333f44', '#1e262a'], lip: '#5f8a6a' },
+      nautic: { body: ['#4a5668', '#2f3846', '#1a2029'], lip: '#9fb8d0' },
+    },
+    wood: ['#6a5a74', '#473a50', '#2a2232'],
     concrete: ['#62657f', '#42445c', '#262738'],
     metal: ['#525869', '#303441', '#161821'],
     panel: ['#9aa0c8', '#6b6f99', '#3f4166'],
@@ -127,7 +152,6 @@ export const SKIES = {
 }
 
 export const RAIN = {
-  chance: 0.35,
   drop: 'rgba(200,215,235,0.35)',
   splash: 'rgba(220,230,245,0.5)',
   lightning: 'rgba(230,235,255,0.55)',

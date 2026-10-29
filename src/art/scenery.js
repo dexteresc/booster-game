@@ -1,26 +1,21 @@
 import { FLAG_HEIGHT } from '../sim/game.js'
-import { COLOR, RAIN, SKIES, TEAM } from './theme.js'
+import { BIOMES, COLOR, RAIN, SKIES, TEAM } from './theme.js'
 import { TAU, additive, chrome, glowDot, rand } from './brush.js'
 import { drawSea, layoutSea } from './sea.js'
+import { drawHills, layoutHills } from './hills.js'
 
-// Things that stay put: sky, weather, distant mesas, sea, landing pads, flags.
-// Solids are in solids.js, props in props.js.
+// Things that stay put: sky, weather, distant hills, sea, landing pads, flags.
+// Solids are in solids.js, props in props/, hills in hills.js.
 
 // Parallax k: 0 = pinned to the screen, 1 = moves with the world.
 const SKY_LAYER = 0.1 // stars, suns
 const CLOUD_LAYER = 0.15 // clouds, passing ships
-// Far → near. size scales butte width and lights; lit = share of buttes with windows.
-const MESA_LAYERS = [
-  { k: 0.2, base: 0.8, rise: 320, size: 0.6, lit: 0 },
-  { k: 0.32, base: 0.84, rise: 260, size: 0.8, lit: 0.2 },
-  { k: 0.46, base: 0.88, rise: 200, size: 1, lit: 0.4 },
-  { k: 0.62, base: 0.92, rise: 150, size: 1.2, lit: 0.6 },
-]
 
-// weather: { time: key of SKIES, rain: boolean }
-export function randomWeather() {
+// weather: { time: key of SKIES, rain: boolean }. Rain odds depend on the biome.
+export function randomWeather(biome) {
+  if (!BIOMES[biome]) throw new Error(`randomWeather: unknown biome "${biome}", expected one of ${Object.keys(BIOMES)}`)
   const times = Object.keys(SKIES)
-  return { time: times[Math.floor(Math.random() * times.length)], rain: Math.random() < RAIN.chance }
+  return { time: times[Math.floor(Math.random() * times.length)], rain: Math.random() < BIOMES[biome].rain }
 }
 
 // Random layout is generated once per map.
@@ -80,10 +75,7 @@ function layoutScene(map, sky, rain) {
       offset: rand(0, width),
       phase: rand(0, TAU),
     })),
-    mesas: MESA_LAYERS.map((l, i) => {
-      const base = height * l.base
-      return { ...l, base, color: sky.mesas[i], ...skyline(width, base, { ...l, lit: Math.min(1, l.lit * sky.windows) }) }
-    }),
+    hills: layoutHills(map, sky, map.biome),
     drops: rain
       ? Array.from({ length: 260 }, (_, i) => ({ x: rand(0, 1), y: rand(0, 1), speed: rand(0.9, 1.4), near: i % 3 === 0 }))
       : [],
@@ -110,7 +102,7 @@ function drawBackdrop(ctx, scene, offset, clock) {
     drawClouds(ctx, scene)
     drawShips(ctx, scene, clock)
   })
-  for (const m of scene.mesas) parallax(ctx, m.k, offset, () => drawMesa(ctx, m, scene, clock))
+  for (const m of scene.hills) parallax(ctx, m.k, offset, () => drawHills(ctx, m, scene, clock))
 }
 
 function parallax(ctx, k, offset, draw) {
@@ -163,61 +155,6 @@ function drawShips(ctx, { ships, map }, clock) {
       if (Math.sin(clock * 3 + s.phase) > 0.9) glowDot(ctx, x + 3, s.y, { radius: 10, color: COLOR.shipLight })
     }
   })
-}
-
-function drawMesa(ctx, m, { sky, map }, clock) {
-  ctx.fillStyle = m.color
-  ctx.fill(m.path)
-  const fog = m.rise * 0.5
-  const haze = ctx.createLinearGradient(0, m.base - fog, 0, m.base)
-  haze.addColorStop(0, sky.haze[0])
-  haze.addColorStop(1, sky.haze[1])
-  ctx.fillStyle = haze
-  ctx.fillRect(-1500, m.base - fog, map.width + 3000, fog)
-  ctx.fillStyle = sky.haze[1]
-  ctx.fillRect(-1500, m.base, map.width + 3000, 2000)
-
-  additive(ctx, () => {
-    for (const w of m.windows) {
-      glowDot(ctx, w.x, w.y, { radius: 9 * m.size, color: COLOR.windowLight, alpha: 0.35 })
-      ctx.fillStyle = COLOR.windowLight
-      ctx.fillRect(w.x - 1.5 * m.size, w.y - 1.5 * m.size, 3 * m.size, 3 * m.size)
-    }
-    for (const b of m.beacons) {
-      const alpha = Math.sin(clock * 2.5 + b.phase) > 0.6 ? 1 : 0.15
-      glowDot(ctx, b.x, b.y, { radius: 16 * m.size, color: COLOR.beacon, alpha })
-    }
-  })
-}
-
-// Flat-topped buttes; filled far below the base so parallax never shows a gap.
-function skyline(width, base, { rise, size, lit }) {
-  const path = new Path2D()
-  const windows = []
-  const beacons = []
-  let x = -1500
-  path.moveTo(x, base + 2000)
-  path.lineTo(x, base)
-  while (x < width + 1500) {
-    const top = base - rand(0.45, 1) * rise
-    const w = rand(120, 420) * size
-    const slope = rand(15, 40) * size
-    path.lineTo(x + slope, top)
-    path.lineTo(x + w - slope, top)
-    path.lineTo(x + w, base)
-    if (Math.random() < lit) {
-      const at = rand(x + w * 0.3, x + w * 0.7)
-      for (let n = rand(3, 9); n > 0; n--) {
-        windows.push({ x: at + rand(-0.2, 0.2) * w, y: rand(top + 12 * size, base - 8) })
-      }
-    }
-    if (size >= 0.8 && base - top > rise * 0.75) beacons.push({ x: x + w / 2, y: top - 2, phase: rand(0, TAU) })
-    x += w + rand(0, 160) * size
-    path.lineTo(x, base)
-  }
-  path.lineTo(x, base + 2000)
-  path.closePath()
-  return { path, windows, beacons }
 }
 
 // Sized to the canvas; call with an identity transform. offset: camera, in pixels.

@@ -23,6 +23,7 @@ export function createEditor(name, map) {
 
 export function newMap() {
   return {
+    biome: 'desert',
     width: 3200,
     height: 1400,
     solids: [{ x: 0, y: 1300, w: 3200, h: 100, kind: 'water' }],

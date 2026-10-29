@@ -1,11 +1,22 @@
 import { COLOR } from './theme.js'
 import { TAU } from './brush.js'
+import { GROUND_ART, vertical } from './ground.js'
 
 // Solids: the rects rockets collide with, drawn by kind. sky: palette from SKIES,
-// so everything is lit to match the time of day. Water is in sea.js.
-// New material → a draw function here and its name in SOLID_KINDS (maps/parse.js).
+// so everything is lit to match the time of day. Rock looks like the biome's ground
+// (ground.js); water is in sea.js. New material → a draw function here and its name
+// in SOLID_KINDS (maps/parse.js), then list it in the biomes that offer it (theme.js).
 
-export const SOLID_ART = { rock: drawRock, concrete: drawConcrete, metal: drawMetal, hazard: drawHazard, panel: drawPanel, glass: drawGlass }
+export const SOLID_ART = {
+  rock: drawRock,
+  concrete: drawConcrete,
+  metal: drawMetal,
+  hazard: drawHazard,
+  panel: drawPanel,
+  glass: drawGlass,
+  planks: drawPlanks,
+  hull: drawHull,
+}
 
 const BLOCK = { w: 80, h: 40 } // cast concrete blocks, staggered like brickwork
 const PLATE = { h: 30, rivet: 20 } // steel plates, riveted along the seams
@@ -13,22 +24,62 @@ const STRIPE = 14 // hazard stripe width
 const PANEL = 48 // cream wall panels
 const TRIM_EVERY = 4 // panel rows per orange trim band
 const PANE = 32 // glass block size
+const BOARD = 12 // plank height
+const HULL_PLATE = { w: 90, h: 36 }
 
 // Water is skipped: the sea is drawn last by createScenery().water(), over everything it reflects.
-export function drawSolid(ctx, s, sky) {
+export function drawSolid(ctx, s, sky, biome) {
   if (s.kind === 'water') return
   const draw = SOLID_ART[s.kind ?? 'rock']
   if (!draw) throw new Error(`drawSolid: unknown solid kind "${s.kind}"`)
-  draw(ctx, s, sky)
+  draw(ctx, s, sky, biome)
 }
 
-export function drawRock(ctx, s, sky) {
-  vertical(ctx, s, sky.rock, 20)
-  ctx.fillStyle = COLOR.strata
-  for (let y = s.y + 14; y < s.y + s.h; y += 17) ctx.fillRect(s.x, y, s.w, 1.5)
-  ctx.fillRect(s.x + s.w - 4, s.y, 4, s.h)
-  ctx.fillStyle = sky.rockLip
-  ctx.fillRect(s.x, s.y, s.w, 3)
+export function drawRock(ctx, s, sky, biome) {
+  const draw = GROUND_ART[biome]
+  if (!draw) throw new Error(`drawRock: unknown biome "${biome}", expected one of ${Object.keys(GROUND_ART)}`)
+  draw(ctx, s, sky.ground[biome])
+}
+
+// Horizontal boards with nails at the ends; tiki bar or harbour pier.
+function drawPlanks(ctx, s, sky) {
+  const [light, mid, dark] = sky.wood
+  clipped(ctx, s, () => {
+    for (let i = 0, y = s.y; y < s.y + s.h; i++, y += BOARD) {
+      const g = ctx.createLinearGradient(0, y, 0, y + BOARD)
+      g.addColorStop(0, light)
+      g.addColorStop(0.4, mid)
+      g.addColorStop(1, dark)
+      ctx.fillStyle = g
+      ctx.fillRect(s.x, y, s.w, BOARD)
+      ctx.fillStyle = COLOR.seam
+      ctx.fillRect(s.x, y + BOARD - 1, s.w, 1)
+      const grain = s.x + 20 + ((i * 47) % Math.max(1, s.w - 40))
+      ctx.fillRect(grain, y + 3, Math.min(30, s.x + s.w - grain), 1)
+    }
+    rivets(ctx, s.y + BOARD / 2, { x0: s.x + 5, x1: s.x + s.w, step: Math.max(10, s.w - 10) })
+    rivets(ctx, s.y + s.h - BOARD / 2, { x0: s.x + 5, x1: s.x + s.w, step: Math.max(10, s.w - 10) })
+  })
+  edges(ctx, s, COLOR.lip, COLOR.strata)
+}
+
+// Big riveted hull plates with rust streaking down from the rivets.
+function drawHull(ctx, s, sky) {
+  const [light, mid, shadow] = sky.metal
+  vertical(ctx, s, [light, mid, shadow], s.h / 2)
+  clipped(ctx, s, () => {
+    for (let row = 0, y = s.y; y < s.y + s.h; row++, y += HULL_PLATE.h) {
+      if (row) seam(ctx, { x: s.x, y, w: s.w, h: 2 })
+      const offset = row % 2 ? HULL_PLATE.w / 2 : 0
+      for (let x = s.x + offset; x < s.x + s.w; x += HULL_PLATE.w) {
+        if (x > s.x) seam(ctx, { x, y, w: 2, h: HULL_PLATE.h })
+        ctx.fillStyle = COLOR.rust
+        ctx.fillRect(x + 6, y + 8, 2, 10 + ((x * 3) % 14))
+      }
+      rivets(ctx, y + 6, { x0: s.x + 8, x1: s.x + s.w, step: 16 })
+    }
+  })
+  edges(ctx, s, light, COLOR.metalDark)
 }
 
 function drawConcrete(ctx, s, sky) {
@@ -135,16 +186,6 @@ function drawGlass(ctx, s, sky) {
     }
   })
   edges(ctx, s, sky.metal[0], COLOR.metalDark)
-}
-
-// Top-lit gradient: colors = [top, mid, base], mid reached `lit` units down.
-function vertical(ctx, s, [top, mid, base], lit) {
-  const g = ctx.createLinearGradient(0, s.y, 0, s.y + s.h)
-  g.addColorStop(0, top)
-  g.addColorStop(Math.min(1, lit / s.h), mid)
-  g.addColorStop(1, base)
-  ctx.fillStyle = g
-  ctx.fillRect(s.x, s.y, s.w, s.h)
 }
 
 // Lit top lip, shaded right edge: light comes from the upper left everywhere.

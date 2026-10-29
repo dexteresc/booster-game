@@ -28,7 +28,7 @@ export function createRenderer(canvas, config) {
     const { dpr, w, h } = fitCanvas(canvas)
     applyEvents(view, events)
     if (view.sceneryFor !== game) {
-      view.scenery = createScenery(game.map, randomWeather())
+      view.scenery = createScenery(game.map, randomWeather(game.map.biome))
       view.sceneryFor = game
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -68,7 +68,7 @@ function drawWorld({ ctx, game, me, config, dt, w, h, scale, cam }, { scenery, e
   const { map } = game
   ctx.setTransform(scale, 0, 0, scale, w / 2 - cam.x * scale, h / 2 - cam.y * scale)
   scenery.backdrop(ctx, cam.x, cam.y, clock)
-  for (const s of map.solids) drawSolid(ctx, s, scenery.sky)
+  for (const s of map.solids) drawSolid(ctx, s, scenery.sky, map.biome)
   for (const [team, base] of Object.entries(map.bases)) drawPad(ctx, base.pad, team, clock)
   for (const p of map.props) drawProp(ctx, p, clock)
   for (const [team, t] of Object.entries(game.teams)) {

@@ -1,4 +1,5 @@
 import { parseMap } from '../maps/parse.js'
+import { BIOMES } from '../art/theme.js'
 import { createEditor, isDirty, isRect, newMap, remember, removeSelected, undo } from './model.js'
 import { attachPointer } from './pointer.js'
 import { drawEditor } from './draw.js'
@@ -11,13 +12,14 @@ const NEW = '' // map list value for "new map"
 
 const $ = (id) => document.getElementById(id)
 const canvas = document.querySelector('canvas')
-buildPalette($('palette'))
 const ui = {
   list: $('map-list'),
   name: $('name'),
+  biome: $('biome'),
   width: $('width'),
   height: $('height'),
-  tools: [...document.querySelectorAll('[data-tool]')],
+  palette: $('palette'),
+  tools: () => [...document.querySelectorAll('[data-tool]')],
   remove: $('delete'),
   undo: $('undo'),
   save: $('save'),
@@ -27,6 +29,7 @@ const ui = {
 }
 
 let maps = {} // name → map as last saved
+let paletteBiome = null // biome the tool tiles were drawn for
 const editor = createEditor(null, newMap())
 let hover = { x: 0, y: 0 }
 
@@ -81,9 +84,15 @@ function bindPanel() {
     if (!isDirty(editor) || confirm('Discard unsaved changes?')) load(ui.list.value)
     else ui.list.value = editor.name ?? NEW
   }
+  ui.biome.replaceChildren(...Object.entries(BIOMES).map(([name, b]) => new Option(b.label, name)))
+  ui.biome.onchange = () => edit(() => setBiome(ui.biome.value))
   ui.width.onchange = () => resizeMap('width', ui.width)
   ui.height.onchange = () => resizeMap('height', ui.height)
-  for (const button of ui.tools) button.onclick = () => setTool(button.dataset.tool)
+  ui.palette.onclick = (e) => {
+    const button = e.target.closest('[data-tool]')
+    if (button) setTool(button.dataset.tool)
+  }
+  ui.tools().find((b) => b.dataset.tool === 'select').onclick = () => setTool('select')
   ui.remove.onclick = () => edit(() => removeSelected(editor))
   ui.undo.onclick = () => edit(() => undo(editor))
   ui.save.onclick = save
@@ -120,6 +129,12 @@ function edit(change) {
 function setTool(tool) {
   editor.tool = tool
   refresh()
+}
+
+// Re-skins rock, hills and weather; blocks the biome doesn't offer stay as they are.
+function setBiome(biome) {
+  remember(editor)
+  editor.map.biome = biome
 }
 
 function resizeMap(key, input) {
@@ -168,7 +183,13 @@ function refresh() {
   const { map, selected, tool, name, history: undoable } = editor
   if (document.activeElement !== ui.width) ui.width.value = map.width
   if (document.activeElement !== ui.height) ui.height.value = map.height
-  for (const button of ui.tools) button.setAttribute('aria-pressed', button.dataset.tool === tool)
+  if (paletteBiome !== map.biome) {
+    paletteBiome = map.biome
+    ui.biome.value = map.biome
+    buildPalette(ui.palette, map.biome)
+    if (!ui.tools().some((b) => b.dataset.tool === tool)) editor.tool = 'select'
+  }
+  for (const button of ui.tools()) button.setAttribute('aria-pressed', button.dataset.tool === editor.tool)
   ui.remove.disabled = !selected || selected.kind === 'pad'
   ui.undo.disabled = !undoable.length
   ui.play.hidden = !name

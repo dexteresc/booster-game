@@ -2,11 +2,13 @@
 // Rects are { x, y, w, h } with y pointing down. Solids block rockets; `kind` picks the look:
 // left out = rock, 'water' is sea (touching it crashes), the rest are building materials.
 // Props are decoration standing on a surface, no collision. Cannon x,y = the surface it stands on.
+// biome picks how rock, the hills and the weather look (src/art/theme.js BIOMES); left out = desert.
 // Co-op vs CPU: blue (players) steal red's flag.
 // Returns a clean copy with only known fields; throws naming the bad field.
 
 export const TEAMS = ['blue', 'red']
-export const SOLID_KINDS = ['water', 'concrete', 'metal', 'hazard', 'panel', 'glass'] // art in src/art/solids.js
+export const BIOME_NAMES = ['desert', 'jungle', 'nautic']
+export const SOLID_KINDS = ['water', 'concrete', 'metal', 'hazard', 'panel', 'glass', 'planks', 'hull'] // art in src/art/solids.js
 export const PROP_KINDS = ['lamp', 'starburst', 'beacon', 'tank', 'radar', 'saucer', 'palm'] // art in src/art/props/
 const MIN_PAD_WIDTH = 40 // room for one spawn slot
 
@@ -14,6 +16,7 @@ export function parseMap(raw, label) {
   const at = (path) => `Map "${label}": ${path}`
   if (!raw || typeof raw !== 'object') throw new Error(`${at('map')} must be an object`)
   return {
+    biome: oneOf(raw.biome ?? 'desert', BIOME_NAMES, at('biome')),
     width: positive(raw.width, at('width')),
     height: positive(raw.height, at('height')),
     solids: list(raw.solids, at('solids')).map((s, i) => solid(s, at(`solids[${i}]`))),

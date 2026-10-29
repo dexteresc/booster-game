@@ -1,19 +1,22 @@
-import { PROP_KINDS, SOLID_KINDS } from '../maps/parse.js'
+import { PROP_KINDS } from '../maps/parse.js'
+import { BIOMES } from '../art/theme.js'
 import { drawPreview } from './draw.js'
 
 // Tool tiles in the side panel: a picture of each thing you can place, drawn with the real art.
-// Blocks are dragged out as rects; props (and cannons) are dropped onto a surface.
-const GROUPS = [
-  ['Blocks', ['rock', ...SOLID_KINDS]],
-  ['Props', ['cannon', ...PROP_KINDS]],
-]
+// Blocks are dragged out as rects and depend on the biome; props (and cannons) are dropped onto a surface.
 const KEYS = { rock: 'R', water: 'W', concrete: 'K', metal: 'M', cannon: 'C', lamp: 'L' }
 
 // e.code → tool, for keyboard shortcuts. V is the select tool.
 export const TOOL_KEYS = { KeyV: 'select', ...Object.fromEntries(Object.entries(KEYS).map(([tool, key]) => [`Key${key}`, tool])) }
 
-export function buildPalette(container) {
-  for (const [title, tools] of GROUPS) {
+// Replaces the tiles; call again when the biome changes.
+export function buildPalette(container, biome) {
+  container.replaceChildren()
+  const groups = [
+    ['Blocks', BIOMES[biome].blocks],
+    ['Props', ['cannon', ...PROP_KINDS]],
+  ]
+  for (const [title, tools] of groups) {
     const heading = document.createElement('h2')
     heading.textContent = title
     const grid = document.createElement('div')
@@ -21,7 +24,7 @@ export function buildPalette(container) {
     grid.append(...tools.map(tile))
     container.append(heading, grid)
     // Draw once laid out: a canvas outside the document has no size.
-    for (const button of grid.children) drawPreview(button.querySelector('canvas'), button.dataset.tool)
+    for (const button of grid.children) drawPreview(button.querySelector('canvas'), button.dataset.tool, biome)
   }
 }
 

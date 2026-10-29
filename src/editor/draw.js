@@ -30,8 +30,8 @@ export function drawEditor(canvas, editor, clock) {
 
   drawSky(ctx, map, map.height)
   drawGrid(ctx, map, 1 / view.zoom)
-  for (const s of map.solids) drawSolid(ctx, s, SKY)
-  for (const c of map.cannons) drawStandingCannon(ctx, c, clock)
+  for (const s of map.solids) drawSolid(ctx, s, SKY, map.biome)
+  for (const c of map.cannons) drawStandingCannon(ctx, c, map.biome, clock)
   for (const [team, base] of Object.entries(map.bases)) {
     drawPad(ctx, base.pad, team, clock)
     drawFlag(ctx, flagHome(base), team, clock)
@@ -41,11 +41,11 @@ export function drawEditor(canvas, editor, clock) {
   if (editor.selected) drawSelection(ctx, boundsOf(editor.selected), 1 / view.zoom)
 }
 
-// Tool tile: the object as it looks on the map, fitted into the canvas.
-export function drawPreview(canvas, tool) {
+// Tool tile: the object as it looks on a map of this biome, fitted into the canvas.
+export function drawPreview(canvas, tool, biome) {
   const ctx = canvas.getContext('2d')
   const { w, h } = fitCanvas(canvas)
-  const box = previewBox(tool)
+  const box = previewBox(tool, biome)
   const scale = Math.min(w / box.w, h / box.h) * 0.85
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   drawSky(ctx, { width: w, height: h }, h)
@@ -54,16 +54,16 @@ export function drawPreview(canvas, tool) {
 }
 
 // { w, h, draw } in world units, drawing into 0..w × 0..h.
-function previewBox(tool) {
+function previewBox(tool, biome) {
   const { w, h } = PREVIEW_BLOCK
   if (tool === 'water') return { w, h, draw: (ctx) => drawWater(ctx, { x: 0, y: 0, w, h }) }
-  if (tool === 'cannon') return standing(boundsOf({ kind: 'cannon', obj: { x: 0, y: 0 } }), (ctx, c) => drawStandingCannon(ctx, { ...c, team: 'red' }, 0))
-  if (PROP_KINDS.includes(tool)) return standing(propBounds({ kind: tool, x: 0, y: 0 }), (ctx, p) => drawProp(ctx, { ...p, kind: tool }, 0))
-  return { w, h, draw: (ctx) => drawSolid(ctx, { x: 0, y: 0, w, h, kind: tool }, SKY) }
+  if (tool === 'cannon') return standing(boundsOf({ kind: 'cannon', obj: { x: 0, y: 0 } }), biome, (ctx, c) => drawStandingCannon(ctx, { ...c, team: 'red' }, biome, 0))
+  if (PROP_KINDS.includes(tool)) return standing(propBounds({ kind: tool, x: 0, y: 0 }), biome, (ctx, p) => drawProp(ctx, { ...p, kind: tool }, 0))
+  return { w, h, draw: (ctx) => drawSolid(ctx, { x: 0, y: 0, w, h, kind: tool }, SKY, biome) }
 }
 
 // Something with its foot at (0, 0) and the given bounds, on a strip of rock.
-function standing(bounds, draw) {
+function standing(bounds, biome, draw) {
   const pad = 6
   const w = bounds.w + pad * 2
   const h = bounds.h + PREVIEW_GROUND + pad
@@ -72,14 +72,14 @@ function standing(bounds, draw) {
     w,
     h,
     draw(ctx) {
-      drawRock(ctx, { x: 0, y: foot.y, w, h: PREVIEW_GROUND }, SKY)
+      drawRock(ctx, { x: 0, y: foot.y, w, h: PREVIEW_GROUND }, SKY, biome)
       draw(ctx, foot)
     },
   }
 }
 
-function drawStandingCannon(ctx, c, clock) {
-  drawRock(ctx, cannonPedestal(c), SKY)
+function drawStandingCannon(ctx, c, biome, clock) {
+  drawRock(ctx, cannonPedestal(c), SKY, biome)
   drawCannon(ctx, { ...c, aim: -Math.PI / 2 }, false, clock)
 }
 
