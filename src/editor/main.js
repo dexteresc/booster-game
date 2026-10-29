@@ -1,6 +1,6 @@
 import { parseMap } from '../maps/parse.js'
 import { BIOMES } from '../art/theme.js'
-import { createEditor, flipSelected, isDirty, isRect, newMap, remember, removeSelected, undo } from './model.js'
+import { createEditor, flipSelected, isDirty, isRect, mirrorLeftHalf, newMap, remember, removeSelected, undo } from './model.js'
 import { attachPointer } from './pointer.js'
 import { drawEditor } from './draw.js'
 import { TOOL_KEYS, buildPalette } from './palette.js'
@@ -15,6 +15,7 @@ const canvas = document.querySelector('canvas')
 const ui = {
   list: $('map-list'),
   name: $('name'),
+  mode: $('mode'),
   biome: $('biome'),
   width: $('width'),
   height: $('height'),
@@ -23,6 +24,7 @@ const ui = {
   flip: $('flip'),
   remove: $('delete'),
   undo: $('undo'),
+  mirror: $('mirror'),
   save: $('save'),
   play: $('play'),
   info: $('info'),
@@ -87,6 +89,7 @@ function bindPanel() {
     if (!isDirty(editor) || confirm('Discard unsaved changes?')) load(ui.list.value)
     else ui.list.value = editor.name ?? NEW
   }
+  ui.mode.onchange = () => edit(() => setMode(ui.mode.value))
   ui.biome.onchange = () => edit(() => setBiome(ui.biome.value))
   ui.width.onchange = () => resizeMap('width', ui.width)
   ui.height.onchange = () => resizeMap('height', ui.height)
@@ -98,6 +101,7 @@ function bindPanel() {
   ui.flip.onclick = () => edit(() => flipSelected(editor))
   ui.remove.onclick = () => edit(() => removeSelected(editor))
   ui.undo.onclick = () => edit(() => undo(editor))
+  ui.mirror.onclick = () => edit(() => mirrorLeftHalf(editor))
   ui.save.onclick = save
 }
 
@@ -133,6 +137,11 @@ function edit(change) {
 function setTool(tool) {
   editor.tool = tool
   refresh()
+}
+
+function setMode(mode) {
+  remember(editor)
+  editor.map.mode = mode
 }
 
 // Re-skins rock, hills and weather; blocks the biome doesn't offer stay as they are.
@@ -187,10 +196,12 @@ function refresh() {
   const { map, selected, tool, name, history: undoable } = editor
   if (document.activeElement !== ui.width) ui.width.value = map.width
   if (document.activeElement !== ui.height) ui.height.value = map.height
+  ui.mode.value = map.mode
   refreshTools(map.biome, tool)
   ui.flip.disabled = selected?.kind !== 'prop'
   ui.remove.disabled = !selected || selected.kind === 'pad'
   ui.undo.disabled = !undoable.length
+  ui.mirror.disabled = map.mode !== 'pvp'
   ui.play.hidden = !name
   if (name) ui.play.href = `./?map=${encodeURIComponent(name)}`
   document.title = `${isDirty(editor) ? '• ' : ''}${name ?? 'new map'} · Booster map editor`

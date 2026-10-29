@@ -71,10 +71,7 @@ function drawWorld({ ctx, game, me, config, dt, w, h, scale, cam }, { scenery, e
   for (const s of map.solids) drawSolid(ctx, s, scenery.sky, map.biome)
   for (const [team, base] of Object.entries(map.bases)) drawPad(ctx, base.pad, team, clock)
   for (const p of map.props) drawProp(ctx, p, clock)
-  for (const [team, t] of Object.entries(game.teams)) {
-    const carrier = game.rockets.find((r) => r.id === t.flagCarrier)
-    drawFlag(ctx, carrier ? { x: carrier.x, y: carrier.y - 20 } : flagHome(map.bases[team]), team, clock)
-  }
+  drawFlags(ctx, game, clock)
   for (const c of game.cannons) drawCannon(ctx, c, c.cooldown > config.cannon.fireInterval - MUZZLE_FLASH, clock)
   for (const b of game.bullets) drawLaser(ctx, b)
   for (const r of game.rockets) if (r.alive) drawRocket(ctx, r, config.rocket.engineOffset, r === me)
@@ -84,12 +81,21 @@ function drawWorld({ ctx, game, me, config, dt, w, h, scale, cam }, { scenery, e
   scenery.rain(ctx, cam.x * scale, cam.y * scale, clock)
 }
 
+function drawFlags(ctx, game, clock) {
+  for (const [team, t] of Object.entries(game.teams)) {
+    if (!t.flag) continue
+    const carrier = game.rockets.find((r) => r.id === t.flagCarrier)
+    drawFlag(ctx, carrier ? { x: carrier.x, y: carrier.y - 20 } : flagHome(game.map.bases[team]), team, clock)
+  }
+}
+
 function drawHud(frame, view) {
   const { ctx, dpr } = frame
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   if (view.touch) drawTouchZones(frame)
   if (frame.me.alive) drawObjective(frame)
   ctx.textAlign = 'center'
+  drawNameBadges(frame)
   ctx.textBaseline = 'top'
   ctx.letterSpacing = '3px'
   drawScores(frame)
@@ -138,6 +144,24 @@ function drawObjectiveArrow({ ctx, cw, ch }, at, accent) {
   ctx.restore()
 }
 
+// Other players' names above their rockets: blue = your team, red = the other team.
+function drawNameBadges({ ctx, game, me, cam, scale, dpr, cw, ch }) {
+  ctx.font = `600 11px ${FONT}`
+  ctx.textBaseline = 'middle'
+  for (const r of game.rockets) {
+    if (!r.alive || r === me || !r.name) continue
+    const x = (r.x - cam.x) * (scale / dpr) + cw / 2
+    const y = (r.y - 40 - cam.y) * (scale / dpr) + ch / 2 // above the antenna
+    const w = ctx.measureText(r.name).width + 10
+    ctx.fillStyle = r.team === me.team ? COLOR.ally : COLOR.enemy
+    ctx.beginPath()
+    ctx.roundRect(x - w / 2, y - 8, w, 16, 8)
+    ctx.fill()
+    ctx.fillStyle = COLOR.text
+    ctx.fillText(r.name, x, y + 0.5)
+  }
+}
+
 function drawScores({ ctx, game, config, cw }) {
   ctx.font = `700 18px ${FONT}`
   const teams = Object.entries(game.teams)
@@ -151,8 +175,13 @@ function drawScores({ ctx, game, config, cw }) {
   ctx.shadowBlur = 4
   ctx.fillStyle = COLOR.textDim
   ctx.font = `600 11px ${FONT}`
-  ctx.fillText(`FIRST TO ${config.rules.capturesToWin}`, cw / 2, 38)
+  ctx.fillText(goalText(game, config.rules), cw / 2, 38)
   ctx.shadowBlur = 0
+}
+
+function goalText(game, rules) {
+  if (game.mode === 'pvp') return `FIRST TO ${rules.capturesToWin}`
+  return `${rules.capturesToWin} CAPTURES WIN · ${rules.cpuKillsToWin} SHOOT-DOWNS LOSE`
 }
 
 function hudMessage({ game, me }, { banner, clock }) {

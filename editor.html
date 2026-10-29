@@ -128,6 +128,7 @@
       <h1>Map editor</h1>
       <label>Map <select id="map-list"></select></label>
       <label>Name <input id="name" placeholder="my-map" spellcheck="false" /></label>
+      <label>Mode <select id="mode"><option value="pve">PvE</option><option value="pvp">PvP</option></select></label>
       <label>Biome <select id="biome"></select></label>
       <label>Width <input id="width" type="number" min="100" step="100" /></label>
       <label>Height <input id="height" type="number" min="100" step="100" /></label>
@@ -139,6 +140,7 @@
         <button id="flip">Flip F</button>
         <button id="delete">Delete</button>
         <button id="undo">Undo</button>
+        <button id="mirror" title="Replace the right half with a mirror image of the left half">Mirror ⇆</button>
       </div>
       <div class="row">
         <button id="save">Save ⌘S</button>
@@ -148,8 +150,9 @@
       <p id="status" role="status"></p>
       <p class="help">
         Blocks: drag out a rect. Props and cannons: click a surface; props are decoration, rockets fly through them, F flips one. Drag things to
-        move them, drag edges to resize. Drag empty space or right-drag to pan. Scroll to pan, pinch or ⌘-scroll to zoom. Orange pad =
-        players' base, red pad + cannons = CPU. Saving reloads any open game tab.
+        move them, drag edges to resize. Drag empty space or right-drag to pan. Scroll to pan, pinch or ⌘-scroll to zoom. PvE: orange pad =
+        players' base, red pad + cannons = CPU. PvP: symmetric, each team's cannons guard its base; build the left half, then Mirror.
+        Saving reloads any open game tab.
       </p>
     </aside>
     <canvas></canvas>

@@ -6,17 +6,25 @@ import { cannonPedestal, stepBullets, stepCannons } from './cannon.js'
 // All state is plain data (JSON-serializable) for snapshots over the network.
 
 export const FLAG_HEIGHT = 40
+// PvE: players are blue, the computer is red and only has turrets. PvP: both teams are players.
+export const CPU_TEAM = 'red'
 
-// players: [{ id, team }]. Teams come from map.bases.
-export function createGame(map, players) {
+// PvE has one flag, the computer's: players steal it, the computer scores by shooting players down.
+export function hasFlag(mode, team) {
+  return mode === 'pvp' || team === CPU_TEAM
+}
+
+// players: [{ id, team, name }]. Teams come from map.bases.
+export function createGame(map, players, mode = 'pve') {
   const pads = Object.values(map.bases).map((b) => b.pad)
   const game = {
+    mode,
     time: 0,
     winner: null,
     wonAt: null,
     events: [], // this tick only: { type: 'explode' | 'capture', ... }
     map: { ...map, solids: [...map.solids, ...pads, ...map.cannons.map(cannonPedestal)] },
-    teams: Object.fromEntries(Object.keys(map.bases).map((team) => [team, { score: 0, flagCarrier: null }])),
+    teams: Object.fromEntries(Object.keys(map.bases).map((team) => [team, { score: 0, flagCarrier: null, flag: hasFlag(mode, team) }])),
     rockets: [],
     cannons: map.cannons.map((c) => ({ ...c, aim: -Math.PI / 2, cooldown: 0 })),
     bullets: [],
@@ -30,12 +38,12 @@ export function maxPlayersPerTeam(game, team) {
   return Math.floor((game.map.bases[team].pad.w - 40) / 40) + 1
 }
 
-export function addPlayer(game, { id, team }) {
+export function addPlayer(game, { id, team, name = '' }) {
   const taken = new Set(game.rockets.filter((r) => r.team === team).map((r) => r.slot))
   let slot = 0
   while (taken.has(slot)) slot++
   if (slot >= maxPlayersPerTeam(game, team)) throw new Error(`Team ${team} is full, can't add player ${id}`)
-  const rocket = { id, team, slot }
+  const rocket = { id, team, name, slot }
   spawnRocket(rocket, game.map.bases[team].pad)
   game.rockets.push(rocket)
 }
@@ -72,8 +80,18 @@ export function step(game, inputs, config) {
   }
 
   stepCannons(game, config, dt)
-  for (const rocket of stepBullets(game, config, dt)) kill(game, rocket, config)
+  for (const rocket of stepBullets(game, config, dt)) {
+    kill(game, rocket, config)
+    if (game.mode === 'pve' && !game.winner) score(game, CPU_TEAM, config.rules.cpuKillsToWin)
+  }
   if (!game.winner) updateFlags(game, config)
+}
+
+function score(game, team, toWin) {
+  game.teams[team].score++
+  if (game.teams[team].score < toWin) return
+  game.winner = team
+  game.wonAt = game.time
 }
 
 function kill(game, rocket, config) {
@@ -96,24 +114,20 @@ function updateFlags(game, config) {
 
 function pickUpFlags(game, rocket, radius) {
   for (const [name, team] of Object.entries(game.teams)) {
-    if (name === rocket.team || team.flagCarrier !== null) continue
+    if (name === rocket.team || !team.flag || team.flagCarrier !== null) continue
     const flag = flagHome(game.map.bases[name])
     if (Math.hypot(rocket.x - flag.x, rocket.y - (flag.y - FLAG_HEIGHT / 2)) < radius) team.flagCarrier = rocket.id
   }
 }
 
-// Capture: land on your own pad with their flag while yours is home.
+// Capture: land on your own pad with their flag while yours (if you have one) is home.
 function tryCapture(game, rocket, capturesToWin) {
   const own = game.teams[rocket.team]
   const carried = Object.values(game.teams).find((t) => t.flagCarrier === rocket.id)
   if (!carried || own.flagCarrier !== null || !rocket.landed || !onPad(rocket, game.map.bases[rocket.team].pad)) return
   carried.flagCarrier = null
-  own.score++
   game.events.push({ type: 'capture', team: rocket.team })
-  if (own.score >= capturesToWin) {
-    game.winner = rocket.team
-    game.wonAt = game.time
-  }
+  score(game, rocket.team, capturesToWin)
 }
 
 function onPad(rocket, pad) {

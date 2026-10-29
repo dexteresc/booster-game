@@ -11,10 +11,10 @@ const flat = {
 }
 const BOTH = { left: true, right: true }
 
-function setup(map = flat, tweak = () => {}) {
+function setup(map = flat, tweak = () => {}, mode = 'pve') {
   const config = structuredClone(baseConfig)
   tweak(config)
-  const game = createGame(map, [{ id: 'p1', team: 'blue' }])
+  const game = createGame(map, [{ id: 'p1', team: 'blue' }], mode)
   return { config, game, r: game.rockets[0] }
 }
 function run({ game, config }, seconds, input = {}) {
@@ -120,11 +120,37 @@ function runUntil({ game, config }, done, seconds) {
   assert.equal(t.game.teams.red.flagCarrier, null, 'flag returns when carrier dies')
 }
 
-// Cannon shoots down a rocket in range.
+// Cannon shoots down a rocket in range. In PvE that scores for the computer; crashes don't.
 {
   const t = setup({ ...flat, cannons: [{ x: 1000, y: 900, team: 'red' }] }, (c) => (c.cannon.enabled = true))
   Object.assign(t.r, { x: 1400, y: 900 - 18 })
   assert(runUntil(t, () => !t.r.alive, 6), 'cannon should hit rocket in range')
+  assert.equal(t.game.teams.red.score, 1, 'PvE: shoot-down scores for the computer')
+
+  t.config.rules.cpuKillsToWin = 2
+  Object.assign(t.r, { x: 1400, y: 900 - 18, alive: true })
+  assert(runUntil(t, () => t.game.winner === 'red', 6), 'PvE: computer wins after cpuKillsToWin shoot-downs')
+
+  const crash = setup()
+  Object.assign(crash.r, { x: 1000, y: 870, angle: Math.PI, landed: false })
+  assert(runUntil(crash, () => !crash.r.alive, 1) && crash.game.teams.red.score === 0, 'PvE: crashes are not kills')
+}
+
+// PvE: players have no flag. PvP: both do, and yours must be home to capture.
+{
+  const pve = setup()
+  assert.equal(pve.game.teams.blue.flag, false, 'PvE: no player flag')
+  const pvp = setup(flat, () => {}, 'pvp')
+  addPlayer(pvp.game, { id: 'p2', team: 'red' })
+  const [blue, red] = pvp.game.rockets
+  const blueFlag = flagHome(flat.bases.blue)
+  Object.assign(red, { x: blueFlag.x, y: blueFlag.y - 20 })
+  Object.assign(blue, { x: flagHome(flat.bases.red).x, y: flagHome(flat.bases.red).y - 20 })
+  step(pvp.game, {}, pvp.config)
+  assert.equal(pvp.game.teams.blue.flagCarrier, 'p2', 'PvP: red takes blue flag')
+  Object.assign(blue, { x: flat.bases.blue.pad.x + 40, y: flat.bases.blue.pad.y - 18 })
+  step(pvp.game, {}, pvp.config)
+  assert.equal(pvp.game.teams.blue.score, 0, "PvP: can't capture while your flag is taken")
 }
 
 // Players join and leave mid-game; slots are reused, full teams refuse.

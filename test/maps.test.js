@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { parseMap } from '../src/maps/parse.js'
+import { mirrorMap } from '../src/editor/model.js'
 
 const dir = new URL('../src/maps/', import.meta.url)
 
-// Every shipped map parses, and parsing keeps it as is.
+// Every shipped map parses, and parsing keeps it as is. PvP maps are fair: mirroring changes nothing.
+const sorted = (map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [k, Array.isArray(v) ? v.map((o) => JSON.stringify(o)).sort() : v]))
 for (const file of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
   const raw = JSON.parse(readFileSync(new URL(file, dir), 'utf8'))
   assert.deepEqual(parseMap(raw, file), raw, `${file} should parse unchanged`)
+  if (raw.mode === 'pvp') assert.deepEqual(sorted({ ...raw, ...mirrorMap(raw) }), sorted(raw), `${file}: PvP map should be symmetric (editor: Mirror)`)
 }
 
 const canyon = JSON.parse(readFileSync(new URL('canyon.json', dir), 'utf8'))
@@ -25,6 +28,7 @@ assert.throws(broken((m) => (m.solids[0].water = true)), /solids\[0\]\.water is 
 assert.throws(broken((m) => (m.props = [{ kind: 'tree', x: 0, y: 0 }])), /props\[0\]\.kind must be one of lamp,starburst/)
 assert.equal(parseMap({ ...canyon, extra: 1 }, 'test').extra, undefined, 'unknown fields dropped')
 assert.throws(broken((m) => (m.biome = 'moon')), /biome must be one of desert,jungle,nautic/)
+assert.throws(broken((m) => (m.mode = 'solo')), /mode must be one of pve,pvp/)
 const flipped = parseMap({ ...canyon, props: [{ kind: 'lamp', x: 1, y: 2, flip: true }, { kind: 'lamp', x: 1, y: 2, flip: 'yes' }] }, 'test').props
 assert.deepEqual(flipped, [{ kind: 'lamp', x: 1, y: 2, flip: true }, { kind: 'lamp', x: 1, y: 2 }], 'flip kept only when true')
 

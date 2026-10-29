@@ -1,4 +1,4 @@
-import { flagHome } from '../sim/game.js'
+import { flagHome, hasFlag } from '../sim/game.js'
 import { PROP_KINDS } from '../maps/parse.js'
 import { cannonPedestal } from '../sim/cannon.js'
 import { COLOR, SKIES } from '../art/theme.js'
@@ -34,7 +34,7 @@ export function drawEditor(canvas, editor, clock) {
   for (const c of map.cannons) drawStandingCannon(ctx, c, map.biome, clock)
   for (const [team, base] of Object.entries(map.bases)) {
     drawPad(ctx, base.pad, team, clock)
-    drawFlag(ctx, flagHome(base), team, clock)
+    if (hasFlag(map.mode, team)) drawFlag(ctx, flagHome(base), team, clock)
   }
   for (const p of map.props) drawProp(ctx, p, clock)
   for (const s of map.solids) if (s.kind === 'water') drawWater(ctx, s)

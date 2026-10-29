@@ -61,6 +61,8 @@ export const COLOR = {
   spark: ['#fff1c2', '#ffb347', '#ff6a1f'],
   smoke: '#2e2422',
 
+  ally: '#2f7bff', // name badges: your team
+  enemy: '#e0312b', // name badges: the other team
   text: '#fff3dc',
   textDim: 'rgba(255,243,220,0.75)',
   textShadow: 'rgba(0,0,0,0.6)',

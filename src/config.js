@@ -20,6 +20,7 @@ export const config = {
   rules: {
     respawnSeconds: 3,
     capturesToWin: 3,
+    cpuKillsToWin: 10, // PvE: the computer wins after its turrets shoot players down this often (crashes don't count)
     flagPickupRadius: 30,
   },
 

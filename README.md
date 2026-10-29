@@ -1,6 +1,14 @@
 # Booster
 
-Two-engine rocket capture-the-flag in the browser. Co-op vs CPU: steal red's flag, land it on your pad.
+Two-engine rocket capture-the-flag in the browser. Pick a mode on the start screen:
+
+- **PvE**: co-op vs the computer. Steal red's flag, land it on your pad. Red wins if its turrets shoot you
+  down often enough first (`rules.cpuKillsToWin`; crashes don't count). Invite friends to fly with you.
+- **PvP**: team capture-the-flag, up to 4 v 4, on symmetric maps where each team's turrets guard its base.
+  The host opens a lobby, shares the invite link and moves players between teams, then starts the match.
+  After a win everyone goes back to the lobby.
+
+Your name shows above your rocket for the others: blue for your team, red for theirs.
 Multiplayer is peer-to-peer, see [TURN.md](TURN.md).
 
 Live: https://nqvst.github.io/booster-game/
@@ -32,8 +40,10 @@ odds and which blocks the editor offers. Blocks are solid; props (lamps, signs, 
 that rockets fly through, and all props work in every biome. New material, prop or biome: `src/art/solids.js`,
 `src/art/props/` or `src/art/theme.js` BIOMES (+ ground art in `src/art/ground.js`), then its name in
 `src/maps/parse.js`; the editor and `/art.html` pick it up.
+A map has a mode. PvE maps: orange pad for the players, red pad and cannons for the computer. PvP maps must be
+symmetric (`npm test` checks): build the left half, press Mirror. Cannons belong to the side they stand on.
 Commit the JSON to ship it. Saving only works on the dev server; the editor isn't deployed.
-Play a map with `?map=<name>` or the dropdown in the game.
+Play a map with `?map=<name>` (skips the start screen) or the dropdown in the game; it lists the current mode's maps.
 
 ## Release
 

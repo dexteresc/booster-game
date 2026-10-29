@@ -26,6 +26,7 @@
         position: fixed;
         top: 8px;
         right: 8px;
+        z-index: 1;
         display: flex;
         gap: 6px;
       }
@@ -50,6 +51,129 @@
         border-radius: 6px;
         user-select: text;
         overflow-wrap: anywhere;
+      }
+      .panel {
+        position: fixed;
+        inset: 0;
+        margin: auto;
+        width: min(560px, calc(100vw - 32px));
+        height: fit-content;
+        max-height: calc(100dvh - 32px);
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding: 20px;
+        background: rgba(10, 14, 30, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        color: #fff3dc;
+        text-align: center;
+      }
+      .panel[hidden] {
+        display: none;
+      }
+      .panel h1 {
+        margin: 0 0 14px;
+        font: 700 28px Futura, 'Avenir Next', 'Century Gothic', system-ui, sans-serif;
+        letter-spacing: 6px;
+        color: #ff7a1a;
+      }
+      .panel button,
+      .panel input {
+        font: inherit;
+        color: inherit;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 6px;
+        padding: 6px 12px;
+      }
+      .panel button:disabled {
+        opacity: 0.4;
+      }
+      .panel label {
+        display: block;
+        margin-bottom: 16px;
+      }
+      .panel input {
+        margin-left: 6px;
+        width: 12em;
+      }
+      .menu-modes {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+      }
+      .menu-modes[hidden] {
+        display: none;
+      }
+      .menu-modes button {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px;
+        text-align: left;
+        cursor: pointer;
+      }
+      .menu-modes button:hover,
+      .menu-modes button:focus-visible {
+        border-color: #ff7a1a;
+      }
+      .menu-modes canvas {
+        display: block;
+        flex: none;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 220 / 96;
+        border-radius: 4px;
+      }
+      .menu-modes strong {
+        font-size: 18px;
+        letter-spacing: 2px;
+      }
+      .menu-modes span {
+        font-size: 13px;
+        opacity: 0.8;
+      }
+      .menu-join,
+      .lobby-start {
+        font-size: 18px;
+        padding: 10px 20px;
+        border-color: #ff7a1a;
+      }
+      .lobby-teams {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 14px 0;
+        text-align: left;
+      }
+      .lobby-teams section {
+        border-top: 3px solid var(--team);
+        padding-top: 6px;
+      }
+      .lobby-teams h3 {
+        margin: 0 0 6px;
+        color: var(--team);
+        font-size: 14px;
+        letter-spacing: 2px;
+      }
+      .lobby-teams ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .lobby-teams li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 0;
+        overflow-wrap: anywhere;
+      }
+      .lobby-teams li button {
+        padding: 2px 10px;
+      }
+      .lobby-room {
+        opacity: 0.8;
       }
       #tuning {
         position: fixed;
@@ -81,9 +205,35 @@
   <body>
     <canvas></canvas>
     <div id="controls">
-      <select id="map" aria-label="Map"></select>
-      <button id="invite">Invite</button>
+      <select id="map" aria-label="Map" hidden></select>
+      <button id="invite" hidden>Invite</button>
+      <button id="leave" hidden>Leave</button>
       <button id="tune-toggle" aria-label="Tuning panel">⚙</button>
+    </div>
+    <div id="menu" class="panel" hidden>
+      <h1>BOOSTER</h1>
+      <label>Your name <input id="player-name" maxlength="16" autocomplete="nickname" placeholder="Pilot" /></label>
+      <div class="menu-modes">
+        <button data-mode="pve">
+          <canvas></canvas>
+          <strong>PvE</strong>
+          <span class="menu-pve-rules"></span>
+        </button>
+        <button data-mode="pvp">
+          <canvas></canvas>
+          <strong>PvP</strong>
+          <span>Capture the flag, team vs team, up to 4 v 4. Turrets guard each base. Invite friends to a lobby.</span>
+        </button>
+      </div>
+      <button class="menu-join" hidden></button>
+    </div>
+    <div id="lobby" class="panel" hidden>
+      <h1>LOBBY</h1>
+      <p class="lobby-room"></p>
+      <button class="lobby-invite">Copy invite link</button>
+      <div class="lobby-teams"></div>
+      <p class="lobby-wait">Waiting for the host to start…</p>
+      <button class="lobby-start">Start match</button>
     </div>
     <div id="status" hidden></div>
     <div id="tuning" hidden></div>

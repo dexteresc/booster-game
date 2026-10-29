@@ -23,6 +23,7 @@ export function createEditor(name, map) {
 
 export function newMap() {
   return {
+    mode: 'pve',
     biome: 'desert',
     width: 3200,
     height: 1400,
@@ -85,8 +86,35 @@ export function addRect(editor, at, kind) {
   return rect
 }
 
+// PvE cannons are the computer's. PvP cannons guard the base on their side of the map.
 export function addCannon(editor, at) {
-  return addStanding(editor, 'cannon', { x: 0, y: 0, team: 'red' }, at)
+  const { map } = editor
+  const team = map.mode === 'pvp' && at.x < map.width / 2 ? 'blue' : 'red'
+  return addStanding(editor, 'cannon', { x: 0, y: 0, team }, at)
+}
+
+// PvP maps are symmetric: build the left (blue) half, this replaces the right half with its mirror image.
+export function mirrorLeftHalf(editor) {
+  remember(editor)
+  Object.assign(editor.map, mirrorMap(editor.map))
+  editor.selected = null
+}
+
+// Keeps what's centered left of (or on) the middle line, adds its mirror image on the right.
+// Mirrored props face the other way; cannons belong to the side they stand on.
+export function mirrorMap(map) {
+  const { width } = map
+  const half = (list, centerX, mirror) => {
+    const kept = list.filter((o) => centerX(o) <= width / 2)
+    return [...kept, ...kept.filter((o) => centerX(o) < width / 2).map(mirror)]
+  }
+  const blueCannon = (c) => (c.x < width / 2 ? { ...c, team: 'blue' } : c)
+  return {
+    solids: half(map.solids, (s) => s.x + s.w / 2, (s) => ({ ...s, x: width - s.x - s.w })),
+    cannons: half(map.cannons.map(blueCannon), (c) => c.x, (c) => ({ ...c, x: width - c.x, team: 'red' })),
+    props: half(map.props, (p) => p.x, ({ flip, ...p }) => ({ ...p, x: width - p.x, ...(!flip && { flip: true }) })),
+    bases: { ...map.bases, red: { pad: { ...map.bases.blue.pad, x: width - map.bases.blue.pad.x - map.bases.blue.pad.w } } },
+  }
 }
 
 export function addProp(editor, at, kind) {

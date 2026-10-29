@@ -18,13 +18,16 @@ Peer-to-peer over WebRTC with [PeerJS](https://peerjs.com). No game server. Code
 
 1. **Credentials.** Before hosting or joining, the game GETs short-lived TURN credentials from our
    Worker (`worker/turn.js`). The TURN secret lives only in the Worker.
-2. **Host.** Invite registers `booster-game-<CODE>` on the PeerJS server. The link is
-   `…/?map=<map>#<CODE>`, so joiners load the same map.
-3. **Join.** The joiner looks up that ID; the PeerJS server passes the WebRTC handshake between the two.
+2. **Host.** Invite (PvE) or picking PvP registers `booster-game-<CODE>` on the PeerJS server.
+   The link is `…/#<CODE>`.
+3. **Join.** The joiner enters a name and looks up that ID, sending the name as connection metadata;
+   the PeerJS server passes the WebRTC handshake between the two.
 4. **Connect.** Browsers try direct first (STUN finds public addresses). If NAT or a firewall blocks that
    (mobile data, office wifi, strict routers), traffic goes through Cloudflare's TURN relay.
-5. **Play.** The host runs the only sim. Joiners send `{ type: 'input', left, right }` every frame;
-   the host sends `{ type: 'snapshot', … }` 30 times a second. Room full → `{ type: 'full' }`.
+5. **Lobby (PvP).** The host sends `{ type: 'lobby', players, mapName }` on every change and once a second.
+6. **Play.** The host runs the only sim. Joiners send `{ type: 'input', left, right }` every frame;
+   the host sends `{ type: 'snapshot', mapName, mode, … }` 30 times a second, so joiners follow map changes.
+   Room full → `{ type: 'full' }`.
 
 ### Timeouts
 
@@ -44,7 +47,7 @@ Peer-to-peer over WebRTC with [PeerJS](https://peerjs.com). No game server. Code
 | `no answer from host after 15s…` | Browsers found no route, even through the relay |
 | `Negotiation of connection to … failed` | Same, but WebRTC gave up before the timeout |
 | `Lost connection to host` / `Host left` | Connection dropped mid-game |
-| `Room is full` | Host's team pad has no free spawn slot |
+| `Room is full` | PvE: the players' pad has no free spawn slot. PvP: both teams have 4 |
 
 ### Known gaps
 

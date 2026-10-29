@@ -2,7 +2,8 @@ import { Peer } from 'peerjs'
 
 // Peer-to-peer over WebRTC. The public PeerJS server only brokers the handshake;
 // game traffic goes browser to browser. The host runs the only real sim:
-// clients send { type: 'input', left, right }, host sends { type: 'snapshot', ... }.
+// clients connect with their name and send { type: 'input', left, right };
+// host sends { type: 'snapshot', ... } in game and { type: 'lobby', ... } while picking teams.
 const ID_PREFIX = 'booster-game-'
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 // Closing a tab doesn't always fire 'close' on the other side, so silence = gone.
@@ -30,11 +31,19 @@ async function peerOptions() {
   }
 }
 
+const NAME_LENGTH = 16
+
+// Player names come from other browsers: plain text, one line, short.
+export function cleanName(raw) {
+  const name = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, NAME_LENGTH) : ''
+  return name || 'Pilot'
+}
+
 function randomCode() {
   return Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => CODE_CHARS[b % CODE_CHARS.length]).join('')
 }
 
-// handlers: { onJoin(id) → accepted?, onLeave(id), onInput(id, input), onError(err) }
+// handlers: { onJoin(id, name) → accepted?, onLeave(id), onInput(id, input), onError(err) }
 export async function hostRoom(handlers) {
   const options = await peerOptions()
   return new Promise((resolve, reject) => {
@@ -64,7 +73,7 @@ export async function hostRoom(handlers) {
 // players: conn → last message time
 function acceptPlayer(players, conn, handlers) {
   conn.on('open', () => {
-    if (!handlers.onJoin(conn.peer)) {
+    if (!handlers.onJoin(conn.peer, cleanName(conn.metadata?.name))) {
       conn.send({ type: 'full' })
       setTimeout(() => conn.close(), 500)
       return
@@ -90,8 +99,8 @@ function dropPlayer(players, conn, handlers) {
 // (strict NAT, mobile data, relay down), WebRTC can stay "checking" without ever failing.
 const JOIN_TIMEOUT_MS = 15000
 
-// handlers: { onSnapshot(snapshot), onClose(reason) }. onClose fires at most once, only after joining.
-export async function joinRoom(code, handlers) {
+// handlers: { onSnapshot(snapshot), onLobby(lobby), onClose(reason) }. onClose fires at most once, only after joining.
+export async function joinRoom(code, name, handlers) {
   const options = await peerOptions()
   return new Promise((resolve, reject) => {
     const peer = new Peer(options)
@@ -109,7 +118,7 @@ export async function joinRoom(code, handlers) {
 
     peer.on('error', onError)
     peer.on('open', (id) => {
-      const conn = peer.connect(ID_PREFIX + code, { serialization: 'json' })
+      const conn = peer.connect(ID_PREFIX + code, { serialization: 'json', metadata: { name } })
       conn.on('error', onError) // failing before open emits 'error' but never 'close'
       conn.on('open', () => {
         clearTimeout(timer)
@@ -117,6 +126,7 @@ export async function joinRoom(code, handlers) {
         resolve({
           id,
           sendInput: ({ left, right }) => conn.open && conn.send({ type: 'input', left, right }),
+          leave: (reason) => link.close(reason),
         })
       })
     })
@@ -141,6 +151,7 @@ function watchHost(peer, conn, handlers) {
     lastSeen = Date.now()
     if (msg?.type === 'full') close('Room is full')
     else if (msg?.type === 'snapshot') handlers.onSnapshot(msg)
+    else if (msg?.type === 'lobby') handlers.onLobby(msg)
   })
   conn.on('close', () => close('Host left'))
   return { close }
