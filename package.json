@@ -6,7 +6,7 @@
     "dev": "vite --host",
     "build": "vite build --base=./",
     "preview": "vite preview --host",
-    "test": "node test/sim.test.js && node test/maps.test.js",
+    "test": "node test/sim.test.js && node test/maps.test.js && node test/art.test.js",
     "lint": "eslint .",
     "editor": "vite --host --open /editor.html"
   },

@@ -1,16 +1,17 @@
 import { parseMap } from '../maps/parse.js'
-import { createEditor, isDirty, newMap, remember, removeSelected, undo } from './model.js'
+import { createEditor, isDirty, isRect, newMap, remember, removeSelected, undo } from './model.js'
 import { attachPointer } from './pointer.js'
 import { drawEditor } from './draw.js'
+import { TOOL_KEYS, buildPalette } from './palette.js'
 
 // Map editor: `npm run dev`, open /editor.html. Saves to src/maps/<name>.json
 // through the dev server (vite.config.js); the game picks maps up from there.
 
 const NEW = '' // map list value for "new map"
-const TOOL_KEYS = { KeyV: 'select', KeyR: 'rock', KeyW: 'water', KeyC: 'cannon' }
 
 const $ = (id) => document.getElementById(id)
 const canvas = document.querySelector('canvas')
+buildPalette($('palette'))
 const ui = {
   list: $('map-list'),
   name: $('name'),
@@ -182,9 +183,11 @@ function refreshInfo() {
   ui.info.textContent = selected ? `${at}\n${describe(selected)}` : at
 }
 
-function describe({ kind, obj }) {
-  const size = kind === 'cannon' ? '' : ` ${obj.w}×${obj.h}`
-  return `${obj.water ? 'water' : kind} at ${obj.x}, ${obj.y}${size}`
+function describe(item) {
+  const { kind, obj } = item
+  const what = obj.kind ?? (kind === 'solid' ? 'rock' : kind)
+  const size = isRect(item) ? ` ${obj.w}×${obj.h}` : ''
+  return `${what} at ${obj.x}, ${obj.y}${size}`
 }
 
 function showStatus(text, error = false) {

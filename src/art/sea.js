@@ -3,7 +3,7 @@ import { TAU, additive, rand } from './brush.js'
 
 // The sea: a wavy mirror of what's drawn above it, tinted, with ripples and sun glints.
 
-// rect: a solid tagged `water`. solids: the map's, for foam where rock meets the sea.
+// rect: a solid of kind `water`. solids: the map's, for foam where rock meets the sea.
 export function layoutSea(rect, solids, rain) {
   return {
     rect,
@@ -22,7 +22,7 @@ export function layoutSea(rect, solids, rain) {
     splashes: rain
       ? Array.from({ length: Math.round(rect.w / 25) }, () => ({ x: rand(rect.x, rect.x + rect.w), speed: rand(0.8, 1.6), phase: rand(0, 1) }))
       : [],
-    shores: solids.filter((s) => !s.water && s.y + s.h === rect.y && s.x < rect.x + rect.w && s.x + s.w > rect.x),
+    shores: solids.filter((s) => s.kind !== 'water' && s.y + s.h === rect.y && s.x < rect.x + rect.w && s.x + s.w > rect.x),
   }
 }
 

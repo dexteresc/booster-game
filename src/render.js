@@ -1,7 +1,9 @@
 import { flagHome } from './sim/game.js'
 import { COLOR, FONT, TEAM } from './art/theme.js'
 import { fitCanvas } from './art/brush.js'
-import { createScenery, drawFlag, drawPad, drawRock, randomWeather } from './art/scenery.js'
+import { createScenery, drawFlag, drawPad, randomWeather } from './art/scenery.js'
+import { drawSolid } from './art/solids.js'
+import { drawProp } from './art/props/index.js'
 import { drawCannon, drawLaser, drawRocket } from './art/sprites.js'
 import { createEffects } from './art/effects.js'
 
@@ -66,8 +68,9 @@ function drawWorld({ ctx, game, me, config, dt, w, h, scale, cam }, { scenery, e
   const { map } = game
   ctx.setTransform(scale, 0, 0, scale, w / 2 - cam.x * scale, h / 2 - cam.y * scale)
   scenery.backdrop(ctx, cam.x, cam.y, clock)
-  for (const s of map.solids) if (!s.water) drawRock(ctx, s, scenery.sky)
+  for (const s of map.solids) drawSolid(ctx, s, scenery.sky)
   for (const [team, base] of Object.entries(map.bases)) drawPad(ctx, base.pad, team, clock)
+  for (const p of map.props) drawProp(ctx, p, clock)
   for (const [team, t] of Object.entries(game.teams)) {
     const carrier = game.rockets.find((r) => r.id === t.flagCarrier)
     drawFlag(ctx, carrier ? { x: carrier.x, y: carrier.y - 20 } : flagHome(map.bases[team]), team, clock)

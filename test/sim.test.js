@@ -81,7 +81,7 @@ function runUntil({ game, config }, done, seconds) {
 
 // Even a gentle touchdown on water crashes.
 {
-  const sea = { ...flat, solids: [{ ...flat.solids[0], water: true }] }
+  const sea = { ...flat, solids: [{ ...flat.solids[0], kind: 'water' }] }
   const t = setup(sea)
   Object.assign(t.r, { x: 1000, y: 900 - 18 - 10, landed: false })
   assert(runUntil(t, () => !t.r.alive, 1), 'landing on water should crash')

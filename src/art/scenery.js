@@ -3,7 +3,8 @@ import { COLOR, RAIN, SKIES, TEAM } from './theme.js'
 import { TAU, additive, chrome, glowDot, rand } from './brush.js'
 import { drawSea, layoutSea } from './sea.js'
 
-// Things that stay put: sky, weather, distant mesas, sea, rock, landing pads, flags.
+// Things that stay put: sky, weather, distant mesas, sea, landing pads, flags.
+// Solids are in solids.js, props in props.js.
 
 // Parallax k: 0 = pinned to the screen, 1 = moves with the world.
 const SKY_LAYER = 0.1 // stars, suns
@@ -28,7 +29,7 @@ export function createScenery(map, weather) {
   const sky = SKIES[weather.time]
   if (!sky) throw new Error(`createScenery: unknown time "${weather.time}", expected one of ${Object.keys(SKIES)}`)
   const scene = layoutScene(map, sky, weather.rain)
-  const seas = map.solids.filter((s) => s.water).map((rect) => layoutSea(rect, map.solids, weather.rain))
+  const seas = map.solids.filter((s) => s.kind === 'water').map((rect) => layoutSea(rect, map.solids, weather.rain))
   const mirror = document.createElement('canvas')
   const lightning = { next: rand(3, 8), at: -Infinity }
 
@@ -250,21 +251,6 @@ function drawLightning(ctx, lightning, clock) {
   ctx.fillStyle = RAIN.lightning
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height)
   ctx.globalAlpha = 1
-}
-
-// sky: palette from SKIES, so rock is lit to match the time of day.
-export function drawRock(ctx, s, sky = SKIES.dusk) {
-  const g = ctx.createLinearGradient(0, s.y, 0, s.y + s.h)
-  g.addColorStop(0, sky.rock[0])
-  g.addColorStop(Math.min(1, 20 / s.h), sky.rock[1])
-  g.addColorStop(1, sky.rock[2])
-  ctx.fillStyle = g
-  ctx.fillRect(s.x, s.y, s.w, s.h)
-  ctx.fillStyle = COLOR.strata
-  for (let y = s.y + 14; y < s.y + s.h; y += 17) ctx.fillRect(s.x, y, s.w, 1.5)
-  ctx.fillRect(s.x + s.w - 4, s.y, 4, s.h)
-  ctx.fillStyle = sky.rockLip
-  ctx.fillRect(s.x, s.y, s.w, 3)
 }
 
 // Fills the whole pad rect (it's a solid too).

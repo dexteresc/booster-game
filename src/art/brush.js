@@ -57,3 +57,11 @@ export function glowDot(ctx, x, y, { radius, color, alpha = 1 }) {
   ctx.fill()
   ctx.globalAlpha = 1
 }
+
+// Flattened dark ellipse under something standing at x, y: grounds it on the surface.
+export function groundShadow(ctx, x, y, halfWidth) {
+  ctx.fillStyle = COLOR.shadow
+  ctx.beginPath()
+  ctx.ellipse(x, y, halfWidth, halfWidth * 0.22, 0, 0, TAU)
+  ctx.fill()
+}

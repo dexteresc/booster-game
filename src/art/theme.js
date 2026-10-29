@@ -14,6 +14,7 @@ export const COLOR = {
   meOutline: '#ffffff', // local player's rocket
   cream: '#f6eedb',
   creamShade: '#cdbf9f',
+  creamShaded: ['#fff8ea', '#e9dcbd', '#a8977a'], // for shaded(): light, mid, shadow
   gunmetal: GUNMETAL,
   chrome: [[0, '#4a5058'], [0.3, '#f4f6f8'], [0.5, '#9aa2ac'], [0.68, '#e6eaee'], [1, '#3e434a']], // banded, left → right
   metalDark: '#23262c',
@@ -28,6 +29,17 @@ export const COLOR = {
   beacon: '#ff4a3a',
   shipLight: '#fff2d0',
   windowLight: '#ffcf7a',
+  lampLight: '#ffe7b3',
+  trim: '#ff7a1a', // orange signage and trim bands
+  signal: '#e0312b', // red lenses, sign centers
+  teal: '#3fb6b0',
+  tealDeep: '#1d6a70',
+  hazard: '#f2b233', // mustard, with dark stripes
+  shadow: 'rgba(0,0,0,0.28)', // contact shadow under props
+  seam: 'rgba(0,0,0,0.22)', // joints between concrete blocks and metal plates
+  seamLit: 'rgba(255,255,255,0.14)',
+  lip: 'rgba(255,255,255,0.35)', // lit top edge of blocks
+  rivetDark: 'rgba(0,0,0,0.4)',
   ripple: 'rgba(255,220,190,0.12)',
   foam: 'rgba(255,240,220,0.7)',
   strata: 'rgba(0,0,0,0.12)',
@@ -59,6 +71,10 @@ export const SKIES = {
     glint: '#ffe2b0',
     rock: ['#c98a55', '#9a5a36', '#6e3c26'], // lit top → base
     rockLip: '#e8b07a',
+    concrete: ['#c2aa9c', '#8f7a72', '#5a4a47'], // lit top → base
+    metal: ['#b49690', '#5f5056', '#2c252b'],
+    panel: ['#ffe2bf', '#d9b48c', '#9a7556'], // cream panels: lit, base, shade
+    glass: ['#6fbfc0', '#255f6c'], // pane: top, bottom
     overcast: 'rgba(60,50,70,0.5)', // rain only
     rainCloud: ['rgba(50,40,60,0.9)', 'rgba(120,80,80,0.85)'],
   },
@@ -78,6 +94,10 @@ export const SKIES = {
     glint: '#ffffff',
     rock: ['#e2a66c', '#b8743f', '#8a5030'],
     rockLip: '#f6cf98',
+    concrete: ['#dcd6cc', '#aaa49b', '#78726b'],
+    metal: GUNMETAL,
+    panel: ['#fff8e6', '#efe4c8', '#c9bb9a'],
+    glass: ['#8fe0da', '#2f8f96'],
     overcast: 'rgba(120,128,140,0.6)',
     rainCloud: ['rgba(150,155,165,0.9)', 'rgba(110,115,128,0.9)'],
   },
@@ -97,6 +117,10 @@ export const SKIES = {
     glint: '#cfe0ff',
     rock: ['#6a6488', '#47405e', '#2a2540'],
     rockLip: '#a6a8d8',
+    concrete: ['#62657f', '#42445c', '#262738'],
+    metal: ['#525869', '#303441', '#161821'],
+    panel: ['#9aa0c8', '#6b6f99', '#3f4166'],
+    glass: ['#3f8690', '#143a44'],
     overcast: 'rgba(12,14,24,0.55)',
     rainCloud: ['rgba(20,22,34,0.95)', 'rgba(40,44,62,0.9)'],
   },

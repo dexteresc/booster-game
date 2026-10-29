@@ -1,7 +1,9 @@
 import { config } from '../config.js'
 import { DEFAULT_MAP, maps } from '../maps/index.js'
 import { COLOR, FONT, SKIES } from './theme.js'
-import { createScenery, drawFlag, drawPad, drawRock, randomWeather } from './scenery.js'
+import { createScenery, drawFlag, drawPad, randomWeather } from './scenery.js'
+import { drawRock, drawSolid } from './solids.js'
+import { drawProp } from './props/index.js'
 import { drawCannon, drawLaser, drawRocket } from './sprites.js'
 import { createEffects } from './effects.js'
 import { fitCanvas } from './brush.js'
@@ -37,6 +39,14 @@ const cells = [
     drawRock(ctx, { x: x - 45, y: y + 20, w: 90, h: 25 }, scenery.sky)
     drawPad(ctx, { x: x - 35, y: y, w: 70, h: 20 }, 'blue', t)
   }],
+  ...['concrete', 'metal', 'hazard', 'panel', 'glass'].map((kind) => [kind, (ctx, { x, y }) => {
+    drawSolid(ctx, { x: x - 45, y: y - 10, w: 90, h: 50, kind }, scenery.sky)
+    drawSolid(ctx, { x: x - 20, y: y - 40, w: 40, h: 30, kind }, scenery.sky)
+  }]),
+  ...['lamp', 'starburst', 'beacon', 'tank', 'radar', 'saucer', 'palm'].map((kind) => [kind, (ctx, { x, y, t }) => {
+    drawRock(ctx, { x: x - 45, y: y + 35, w: 90, h: 12 }, scenery.sky)
+    drawProp(ctx, { kind, x, y: y + 35 }, t)
+  }]),
   ['explosion', (ctx, { x, y, boom }) => boom({ x, y, team: 'blue' })],
 ]
 
@@ -73,8 +83,9 @@ function drawMap(w, h) {
   const fit = Math.max(w / canyon.width, h / canyon.height)
   ctx.setTransform(fit, 0, 0, fit, 0, 0)
   scenery.backdrop(ctx, canyon.width / 2, canyon.height / 2, clock)
-  for (const s of canyon.solids) if (!s.water) drawRock(ctx, s, scenery.sky)
+  for (const s of canyon.solids) drawSolid(ctx, s, scenery.sky)
   for (const [team, base] of Object.entries(canyon.bases)) drawPad(ctx, base.pad, team, clock)
+  for (const p of canyon.props) drawProp(ctx, p, clock)
   scenery.water(ctx, canyon.width / 2, clock)
 }
 

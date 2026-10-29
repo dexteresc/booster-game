@@ -27,6 +27,9 @@ npm run lint
 ### Maps
 
 `npm run editor`, draw, ⌘S. Saves `src/maps/<name>.json` and reloads open game tabs.
+Blocks (rock, water, concrete, metal, hazard, panel, glass) are solid. Props (lamps, signs, saucers…)
+are decoration: rockets fly through them. New material or prop: `src/art/solids.js` or `src/art/props/`,
+then its name in `src/maps/parse.js`; the editor and `/art.html` pick it up.
 Commit the JSON to ship it. Saving only works on the dev server; the editor isn't deployed.
 Play a map with `?map=<name>` or the dropdown in the game.
 

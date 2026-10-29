@@ -1,7 +1,8 @@
-import { addCannon, addRect, edgesNear, forgetIfUnchanged, itemAt, minSize, placeCannon, remember, snap } from './model.js'
+import { PROP_KINDS } from '../maps/parse.js'
+import { addCannon, addProp, addRect, edgesNear, forgetIfUnchanged, isRect, itemAt, minSize, placeOnSurface, remember, snap } from './model.js'
 
 // Mouse / pen / touch on the map. Select tool: drag to move, drag an edge to resize,
-// drag empty space to pan. Rock / water: drag out a rect. Cannon: click a surface.
+// drag empty space to pan. Block tools: drag out a rect. Cannon and prop tools: click a surface.
 // Right or middle drag always pans. Scroll pans, pinch or ctrl+scroll zooms.
 
 const EDGE_PX = 8 // grab distance for resize edges, in screen pixels
@@ -41,20 +42,19 @@ export function attachPointer(canvas, editor, { onChange, onHover }) {
 function startDrag(editor, e, p) {
   const pan = { kind: 'pan', from: { x: e.clientX, y: e.clientY }, start: { ...editor.view } }
   if (e.button !== 0) return pan
-  if (editor.tool === 'rock' || editor.tool === 'water') {
-    const rect = addRect(editor, p, editor.tool === 'water')
-    return { kind: 'resize', item: editor.selected, start: { ...rect }, edges: { r: true, b: true }, created: true }
+  if (editor.tool === 'select') return selectDrag(editor, p) ?? pan
+  if (editor.tool === 'cannon' || PROP_KINDS.includes(editor.tool)) {
+    if (editor.tool === 'cannon') addCannon(editor, p)
+    else addProp(editor, p, editor.tool)
+    return { kind: 'stand', item: editor.selected }
   }
-  if (editor.tool === 'cannon') {
-    addCannon(editor, p)
-    return { kind: 'cannon', item: editor.selected }
-  }
-  return selectDrag(editor, p) ?? pan
+  const rect = addRect(editor, p, editor.tool)
+  return { kind: 'resize', item: editor.selected, start: { ...rect }, edges: { r: true, b: true }, created: true }
 }
 
 function selectDrag(editor, p) {
   const { selected } = editor
-  const edges = selected && selected.kind !== 'cannon' && edgesNear(selected.obj, p, EDGE_PX / editor.view.zoom)
+  const edges = selected && isRect(selected) && edgesNear(selected.obj, p, EDGE_PX / editor.view.zoom)
   if (edges) {
     remember(editor)
     return { kind: 'resize', item: selected, start: { ...selected.obj }, edges }
@@ -62,8 +62,8 @@ function selectDrag(editor, p) {
   editor.selected = itemAt(editor.map, p)
   if (!editor.selected) return null
   remember(editor)
-  const { kind, obj } = editor.selected
-  return { kind: kind === 'cannon' ? 'cannon' : 'move', item: editor.selected, from: p, start: { x: obj.x, y: obj.y } }
+  const { obj } = editor.selected
+  return { kind: isRect(editor.selected) ? 'move' : 'stand', item: editor.selected, from: p, start: { x: obj.x, y: obj.y } }
 }
 
 function moveDrag(editor, drag, e, p) {
@@ -73,7 +73,7 @@ function moveDrag(editor, drag, e, p) {
     editor.view.y = drag.start.y - (e.clientY - drag.from.y) / editor.view.zoom
   }
   if (drag.kind === 'move') Object.assign(obj, { x: snap(drag.start.x + p.x - drag.from.x), y: snap(drag.start.y + p.y - drag.from.y) })
-  if (drag.kind === 'cannon') placeCannon(editor.map, obj, p)
+  if (drag.kind === 'stand') placeOnSurface(editor.map, obj, p)
   if (drag.kind === 'resize') resize(drag, p)
 }
 
@@ -102,7 +102,7 @@ function endDrag(editor, drag) {
 function hoverCursor(editor, p) {
   const { selected, tool, view } = editor
   if (tool !== 'select') return 'crosshair'
-  const edges = selected && selected.kind !== 'cannon' && edgesNear(selected.obj, p, EDGE_PX / view.zoom)
+  const edges = selected && isRect(selected) && edgesNear(selected.obj, p, EDGE_PX / view.zoom)
   if (edges) return CURSORS[Object.keys(edges).filter((k) => edges[k]).join('')] ?? 'move'
   return itemAt(editor.map, p) ? 'move' : 'grab'
 }
