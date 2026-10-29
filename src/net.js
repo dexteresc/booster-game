@@ -7,16 +7,39 @@ const ID_PREFIX = 'booster-game-'
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 // Closing a tab doesn't always fire 'close' on the other side, so silence = gone.
 const TIMEOUT_MS = 5000
+// Our Worker (worker/turn.js) that hands out short-lived TURN relay credentials, see TURN.md.
+// Empty = PeerJS's free public relay, often overloaded.
+const TURN_CREDENTIALS_URL = 'https://booster-turn.nqvst.workers.dev/'
+const CREDENTIALS_TIMEOUT_MS = 5000
+
+// Peer options with fresh TURN credentials. Players who can't connect directly
+// (strict NAT, mobile data, office wifi) go through the relay.
+async function peerOptions() {
+  if (!TURN_CREDENTIALS_URL) {
+    console.warn("TURN_CREDENTIALS_URL not set in src/net.js: using PeerJS's public relay. See worker/wrangler.toml")
+    return {}
+  }
+  try {
+    const res = await fetch(TURN_CREDENTIALS_URL, { signal: AbortSignal.timeout(CREDENTIALS_TIMEOUT_MS) })
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
+    const body = await res.json()
+    if (!Array.isArray(body.iceServers)) throw new Error(`expected { iceServers: [...] }, got keys ${Object.keys(body)}`)
+    return { config: { iceServers: body.iceServers } }
+  } catch (err) {
+    throw new Error(`couldn't get relay credentials from ${TURN_CREDENTIALS_URL}: ${err.message}`, { cause: err })
+  }
+}
 
 function randomCode() {
   return Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => CODE_CHARS[b % CODE_CHARS.length]).join('')
 }
 
 // handlers: { onJoin(id) → accepted?, onLeave(id), onInput(id, input), onError(err) }
-export function hostRoom(handlers) {
+export async function hostRoom(handlers) {
+  const options = await peerOptions()
   return new Promise((resolve, reject) => {
     const code = randomCode()
-    const peer = new Peer(ID_PREFIX + code)
+    const peer = new Peer(ID_PREFIX + code, options)
     const players = new Map() // conn → last message time
     let opened = false
 
@@ -68,9 +91,10 @@ function dropPlayer(players, conn, handlers) {
 const JOIN_TIMEOUT_MS = 15000
 
 // handlers: { onSnapshot(snapshot), onClose(reason) }. onClose fires at most once, only after joining.
-export function joinRoom(code, handlers) {
+export async function joinRoom(code, handlers) {
+  const options = await peerOptions()
   return new Promise((resolve, reject) => {
-    const peer = new Peer()
+    const peer = new Peer(options)
     let link = null // set once connected: { close(reason) }
     const fail = (err) => {
       clearTimeout(timer)

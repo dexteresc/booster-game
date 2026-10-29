@@ -1,0 +1,11 @@
+# TURN credentials Worker (turn.js). Not deployed by CI: run `npx wrangler deploy`
+# from this folder after any change. How it works and how to change it: TURN.md.
+name = "booster-turn"
+main = "turn.js"
+compatibility_date = "2026-10-01"
+workers_dev = true # serves https://booster-turn.nqvst.workers.dev
+preview_urls = false
+
+[vars]
+TURN_KEY_ID = "ef80c8f0392410356da52938acbaa5e9" # not secret: useless without the token
+ALLOWED_ORIGINS = "https://nqvst.github.io,http://localhost:5173"
