@@ -29,6 +29,8 @@ const ui = {
   status: $('status'),
 }
 
+ui.biome.replaceChildren(...Object.entries(BIOMES).map(([name, b]) => new Option(b.label, name))) // before the first load sets it
+
 let maps = {} // name → map as last saved
 let paletteBiome = null // biome the tool tiles were drawn for
 const editor = createEditor(null, newMap())
@@ -85,7 +87,6 @@ function bindPanel() {
     if (!isDirty(editor) || confirm('Discard unsaved changes?')) load(ui.list.value)
     else ui.list.value = editor.name ?? NEW
   }
-  ui.biome.replaceChildren(...Object.entries(BIOMES).map(([name, b]) => new Option(b.label, name)))
   ui.biome.onchange = () => edit(() => setBiome(ui.biome.value))
   ui.width.onchange = () => resizeMap('width', ui.width)
   ui.height.onchange = () => resizeMap('height', ui.height)
