@@ -1,5 +1,5 @@
 import { config } from '../config.js'
-import { canyon } from '../maps/canyon.js'
+import { DEFAULT_MAP, maps } from '../maps/index.js'
 import { COLOR, FONT, SKIES } from './theme.js'
 import { createScenery, drawFlag, drawPad, drawRock, randomWeather } from './scenery.js'
 import { drawCannon, drawLaser, drawRocket } from './sprites.js'
@@ -15,6 +15,7 @@ const ZOOM = 3
 
 const rocket = (x, y, team, { left = false, right = false, angle = 0 } = {}) => ({ x, y, team, angle, input: { left, right } })
 const BOTH = { left: true, right: true }
+const canyon = maps[DEFAULT_MAP]
 
 // Each cell draws around its center x, y. t: clock, boom: throttled explosion.
 const cells = [

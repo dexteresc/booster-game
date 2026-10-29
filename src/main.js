@@ -1,5 +1,5 @@
 import { config } from './config.js'
-import { canyon } from './maps/canyon.js'
+import { DEFAULT_MAP, maps } from './maps/index.js'
 import { addPlayer, createGame, maxPlayersPerTeam, removePlayer, snapshotOf, step } from './sim/game.js'
 import { createLocalInput } from './input.js'
 import { createRenderer } from './render.js'
@@ -14,11 +14,14 @@ const SNAPSHOT_EVERY = 4 // ticks → 30 Hz at 120 tick rate
 const canvas = document.querySelector('canvas')
 const status = document.getElementById('status')
 const inviteButton = document.getElementById('invite')
+const mapSelect = document.getElementById('map')
 const input = createLocalInput(canvas, config.keys)
 const draw = createRenderer(canvas, config)
 createTuningPanel(config)
+const mapName = pickMap()
+const map = maps[mapName]
 
-let game = createGame(canyon, [{ id: LOCAL_ID, team: TEAM }])
+let game = createGame(map, [{ id: LOCAL_ID, team: TEAM }])
 let localId = LOCAL_ID
 let room = null // set while hosting: { code, broadcast }
 let client = null // set while joined: { id, sendInput }
@@ -70,7 +73,7 @@ function runSim(elapsed, local) {
     unsentEvents = []
   }
   if (game.winner && game.time - game.wonAt > RESTART_DELAY) {
-    game = createGame(canyon, game.rockets.map(({ id, team }) => ({ id, team })))
+    game = createGame(map, game.rockets.map(({ id, team }) => ({ id, team })))
   }
 }
 
@@ -104,7 +107,7 @@ inviteButton.onclick = async () => {
       inviteButton.disabled = false
     }
   }
-  const link = `${location.origin}${location.pathname}#${room.code}`
+  const link = `${location.origin}${location.pathname}?map=${mapName}#${room.code}`
   try {
     await navigator.clipboard.writeText(link)
     showStatus(`Room ${room.code} · link copied: ${link}`)
@@ -119,8 +122,9 @@ if (joinCode) join(joinCode)
 
 async function join(code) {
   inviteButton.hidden = true
+  mapSelect.hidden = true
   showStatus(`Joining ${code}…`)
-  game = createGame(canyon, []) // filled by the host's snapshots
+  game = createGame(map, []) // filled by the host's snapshots
   try {
     client = await joinRoom(code, {
       onSnapshot(snapshot) {
@@ -139,14 +143,27 @@ async function join(code) {
 
 function backToSolo(reason) {
   client = null
-  history.replaceState(null, '', location.pathname) // reload shouldn't rejoin
-  game = createGame(canyon, [{ id: LOCAL_ID, team: TEAM }])
+  history.replaceState(null, '', location.pathname + location.search) // reload shouldn't rejoin
+  game = createGame(map, [{ id: LOCAL_ID, team: TEAM }])
   localId = LOCAL_ID
   inviteButton.hidden = false
+  mapSelect.hidden = false
   showStatus(reason)
 }
 
 function showStatus(text) {
   status.textContent = text
   status.hidden = false
+}
+
+// ?map=<name> picks the map; invite links carry it so joiners load the same one.
+function pickMap() {
+  const wanted = new URLSearchParams(location.search).get('map') ?? DEFAULT_MAP
+  const name = maps[wanted] ? wanted : DEFAULT_MAP
+  if (name !== wanted) showStatus(`No map "${wanted}", playing ${name}. Maps: ${Object.keys(maps).join(', ')}`)
+  mapSelect.replaceChildren(...Object.keys(maps).map((n) => new Option(n, n, false, n === name)))
+  mapSelect.onchange = () => {
+    location.href = `${location.pathname}?map=${encodeURIComponent(mapSelect.value)}`
+  }
+  return name
 }

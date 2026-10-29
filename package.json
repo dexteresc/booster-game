@@ -6,8 +6,9 @@
     "dev": "vite --host",
     "build": "vite build --base=./",
     "preview": "vite preview --host",
-    "test": "node test/sim.test.js",
-    "lint": "eslint ."
+    "test": "node test/sim.test.js && node test/maps.test.js",
+    "lint": "eslint .",
+    "editor": "vite --host --open /editor.html"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

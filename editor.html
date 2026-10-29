@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Booster map editor</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #05061a;
+        color: #dde3f0;
+        font: 13px system-ui, sans-serif;
+      }
+      body {
+        display: flex;
+      }
+      canvas {
+        flex: 1;
+        min-width: 0;
+        touch-action: none;
+      }
+      aside {
+        width: 220px;
+        padding: 12px;
+        overflow-y: auto;
+        background: rgba(10, 14, 30, 0.95);
+        border-right: 1px solid rgba(255, 255, 255, 0.15);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0;
+      }
+      label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      input,
+      select,
+      button,
+      a.button {
+        font: inherit;
+        background: rgba(255, 255, 255, 0.08);
+        color: inherit;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 5px;
+        padding: 4px 8px;
+      }
+      input,
+      select {
+        width: 120px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      button[aria-pressed='true'] {
+        background: #ff7a1a;
+        border-color: #ff7a1a;
+        color: #120c0c;
+      }
+      button:disabled {
+        opacity: 0.4;
+      }
+      a.button {
+        text-decoration: none;
+      }
+      #info {
+        white-space: pre;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        min-height: 2.6em;
+      }
+      #status.error {
+        color: #ff8a7a;
+      }
+      .help {
+        color: rgba(221, 227, 240, 0.65);
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <h1>Map editor</h1>
+      <label>Map <select id="map-list"></select></label>
+      <label>Name <input id="name" placeholder="my-map" spellcheck="false" /></label>
+      <label>Width <input id="width" type="number" min="100" step="100" /></label>
+      <label>Height <input id="height" type="number" min="100" step="100" /></label>
+      <div class="row">
+        <button data-tool="select">Select V</button>
+        <button data-tool="rock">Rock R</button>
+        <button data-tool="water">Water W</button>
+        <button data-tool="cannon">Cannon C</button>
+      </div>
+      <div class="row">
+        <button id="delete">Delete</button>
+        <button id="undo">Undo</button>
+      </div>
+      <div class="row">
+        <button id="save">Save ⌘S</button>
+        <a id="play" class="button" target="booster-play">Play ↗</a>
+      </div>
+      <div id="info"></div>
+      <p id="status" role="status"></p>
+      <p class="help">
+        Drag things to move them, drag edges to resize. Drag empty space or right-drag to pan. Scroll to pan, pinch or ⌘-scroll to
+        zoom. Orange pad = players' base, red pad + cannons = CPU. Saving reloads any open game tab.
+      </p>
+    </aside>
+    <canvas></canvas>
+    <script type="module" src="src/editor/main.js"></script>
+  </body>
+</html>

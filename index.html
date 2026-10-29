@@ -29,7 +29,8 @@
         display: flex;
         gap: 6px;
       }
-      #controls button {
+      #controls button,
+      #controls select {
         font-size: 16px;
         background: rgba(0, 0, 0, 0.4);
         color: #fff;
@@ -80,6 +81,7 @@
   <body>
     <canvas></canvas>
     <div id="controls">
+      <select id="map" aria-label="Map"></select>
       <button id="invite">Invite</button>
       <button id="tune-toggle" aria-label="Tuning panel">⚙</button>
     </div>
