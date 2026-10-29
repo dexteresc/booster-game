@@ -1,9 +1,11 @@
 import { drawBeacon, drawLamp, drawStarburst } from './lights.js'
 import { drawRadar, drawSaucer, drawTank } from './machines.js'
 import { drawPalm } from './plants.js'
+import { drawStatue } from './statues.js'
 
 // Props: decoration standing on a surface at x, y. No collision: rockets fly through.
-// box: how far the art reaches left, right and up from the foot, for the editor's hit box.
+// Art faces right; flip: true mirrors it around x. box: how far the art reaches left,
+// right and up from the foot, for the editor's hit box.
 // New prop → a draw function in this folder, an entry here, its name in PROP_KINDS
 // (maps/parse.js) and a tile in editor/palette.js.
 export const PROP_ART = {
@@ -14,15 +16,25 @@ export const PROP_ART = {
   radar: { draw: drawRadar, box: { l: 16, r: 16, h: 70 } },
   saucer: { draw: drawSaucer, box: { l: 36, r: 36, h: 34 } },
   palm: { draw: drawPalm, box: { l: 20, r: 22, h: 50 } },
+  statue: { draw: drawStatue, box: { l: 18, r: 18, h: 58 } },
 }
 
 export function drawProp(ctx, p, clock) {
-  art(p).draw(ctx, p, clock)
+  const { draw } = art(p)
+  if (!p.flip) {
+    draw(ctx, p, clock)
+    return
+  }
+  ctx.save()
+  ctx.translate(p.x * 2, 0)
+  ctx.scale(-1, 1)
+  draw(ctx, p, clock)
+  ctx.restore()
 }
 
 export function propBounds(p) {
   const { l, r, h } = art(p).box
-  return { x: p.x - l, y: p.y - h, w: l + r, h }
+  return { x: p.x - (p.flip ? r : l), y: p.y - h, w: l + r, h }
 }
 
 function art(p) {

@@ -39,14 +39,19 @@ const cells = [
     drawRock(ctx, { x: x - 45, y: y + 20, w: 90, h: 25 }, scenery.sky, canyon.biome)
     drawPad(ctx, { x: x - 35, y: y, w: 70, h: 20 }, 'blue', t)
   }],
-  ...['concrete', 'metal', 'hazard', 'panel', 'glass', 'planks', 'hull'].map((kind) => [kind, (ctx, { x, y }) => {
+  ...['concrete', 'metal', 'hazard', 'panel', 'glass', 'planks', 'hull', 'stone'].map((kind) => [kind, (ctx, { x, y }) => {
     drawSolid(ctx, { x: x - 45, y: y - 10, w: 90, h: 50, kind }, scenery.sky, canyon.biome)
     drawSolid(ctx, { x: x - 20, y: y - 40, w: 40, h: 30, kind }, scenery.sky, canyon.biome)
   }]),
-  ...['lamp', 'starburst', 'beacon', 'tank', 'radar', 'saucer', 'palm'].map((kind) => [kind, (ctx, { x, y, t }) => {
+  ...['lamp', 'starburst', 'beacon', 'tank', 'radar', 'saucer', 'palm', 'statue'].map((kind) => [kind, (ctx, { x, y, t }) => {
     drawRock(ctx, { x: x - 45, y: y + 35, w: 90, h: 12 }, scenery.sky, canyon.biome)
     drawProp(ctx, { kind, x, y: y + 35 }, t)
   }]),
+  ['flipped', (ctx, { x, y, t }) => {
+    drawRock(ctx, { x: x - 45, y: y + 35, w: 90, h: 12 }, scenery.sky, canyon.biome)
+    drawProp(ctx, { kind: 'statue', x: x - 22, y: y + 35, flip: true }, t)
+    drawProp(ctx, { kind: 'lamp', x: x + 30, y: y + 35, flip: true }, t)
+  }],
   ['explosion', (ctx, { x, y, boom }) => boom({ x, y, team: 'blue' })],
 ]
 

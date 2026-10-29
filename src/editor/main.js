@@ -1,6 +1,6 @@
 import { parseMap } from '../maps/parse.js'
 import { BIOMES } from '../art/theme.js'
-import { createEditor, isDirty, isRect, newMap, remember, removeSelected, undo } from './model.js'
+import { createEditor, flipSelected, isDirty, isRect, newMap, remember, removeSelected, undo } from './model.js'
 import { attachPointer } from './pointer.js'
 import { drawEditor } from './draw.js'
 import { TOOL_KEYS, buildPalette } from './palette.js'
@@ -20,6 +20,7 @@ const ui = {
   height: $('height'),
   palette: $('palette'),
   tools: () => [...document.querySelectorAll('[data-tool]')],
+  flip: $('flip'),
   remove: $('delete'),
   undo: $('undo'),
   save: $('save'),
@@ -93,6 +94,7 @@ function bindPanel() {
     if (button) setTool(button.dataset.tool)
   }
   ui.tools().find((b) => b.dataset.tool === 'select').onclick = () => setTool('select')
+  ui.flip.onclick = () => edit(() => flipSelected(editor))
   ui.remove.onclick = () => edit(() => removeSelected(editor))
   ui.undo.onclick = () => edit(() => undo(editor))
   ui.save.onclick = save
@@ -117,6 +119,7 @@ function onShortcut(e) {
 
 function onPlainKey(e) {
   if (TOOL_KEYS[e.code]) setTool(TOOL_KEYS[e.code])
+  if (e.code === 'KeyF') edit(() => flipSelected(editor))
   if (e.code === 'Delete' || e.code === 'Backspace') edit(() => removeSelected(editor))
   if (e.code === 'Escape') edit(() => (editor.selected = null))
 }
@@ -183,19 +186,25 @@ function refresh() {
   const { map, selected, tool, name, history: undoable } = editor
   if (document.activeElement !== ui.width) ui.width.value = map.width
   if (document.activeElement !== ui.height) ui.height.value = map.height
-  if (paletteBiome !== map.biome) {
-    paletteBiome = map.biome
-    ui.biome.value = map.biome
-    buildPalette(ui.palette, map.biome)
-    if (!ui.tools().some((b) => b.dataset.tool === tool)) editor.tool = 'select'
-  }
-  for (const button of ui.tools()) button.setAttribute('aria-pressed', button.dataset.tool === editor.tool)
+  refreshTools(map.biome, tool)
+  ui.flip.disabled = selected?.kind !== 'prop'
   ui.remove.disabled = !selected || selected.kind === 'pad'
   ui.undo.disabled = !undoable.length
   ui.play.hidden = !name
   if (name) ui.play.href = `./?map=${encodeURIComponent(name)}`
   document.title = `${isDirty(editor) ? '• ' : ''}${name ?? 'new map'} · Booster map editor`
   refreshInfo()
+}
+
+// Tool tiles follow the biome; a tool the biome doesn't offer falls back to select.
+function refreshTools(biome, tool) {
+  if (paletteBiome !== biome) {
+    paletteBiome = biome
+    ui.biome.value = biome
+    buildPalette(ui.palette, biome)
+    if (!ui.tools().some((b) => b.dataset.tool === tool)) editor.tool = 'select'
+  }
+  for (const button of ui.tools()) button.setAttribute('aria-pressed', button.dataset.tool === editor.tool)
 }
 
 function refreshInfo() {
@@ -208,7 +217,7 @@ function describe(item) {
   const { kind, obj } = item
   const what = obj.kind ?? (kind === 'solid' ? 'rock' : kind)
   const size = isRect(item) ? ` ${obj.w}×${obj.h}` : ''
-  return `${what} at ${obj.x}, ${obj.y}${size}`
+  return `${what}${obj.flip ? ' (flipped)' : ''} at ${obj.x}, ${obj.y}${size}`
 }
 
 function showStatus(text, error = false) {

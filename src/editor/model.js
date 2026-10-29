@@ -56,6 +56,15 @@ export function undo(editor) {
   editor.selected = null
 }
 
+// Mirrors the selected prop to face the other way. Left out of the file when false.
+export function flipSelected(editor) {
+  const { selected } = editor
+  if (selected?.kind !== 'prop') return
+  remember(editor)
+  if (selected.obj.flip) delete selected.obj.flip
+  else selected.obj.flip = true
+}
+
 // Pads can't go: every map needs both bases.
 export function removeSelected(editor) {
   const { selected, map } = editor

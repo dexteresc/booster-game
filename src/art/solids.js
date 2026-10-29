@@ -16,6 +16,7 @@ export const SOLID_ART = {
   glass: drawGlass,
   planks: drawPlanks,
   hull: drawHull,
+  stone: drawStone,
 }
 
 const BLOCK = { w: 80, h: 40 } // cast concrete blocks, staggered like brickwork
@@ -26,6 +27,8 @@ const TRIM_EVERY = 4 // panel rows per orange trim band
 const PANE = 32 // glass block size
 const BOARD = 12 // plank height
 const HULL_PLATE = { w: 90, h: 36 }
+const COURSE = 36 // temple stone: row height
+const STONE_WIDTHS = [72, 48, 96, 60] // cut stones, cycling; each row starts further along
 
 // Water is skipped: the sea is drawn last by createScenery().water(), over everything it reflects.
 export function drawSolid(ctx, s, sky, biome) {
@@ -190,6 +193,46 @@ function drawGlass(ctx, s, sky) {
     }
   }
   edges(ctx, s, sky.metal[0])
+}
+
+// Ancient temple wall: big cut stones, a carved band every third course, moss creeping out of the joints.
+function drawStone(ctx, s, sky) {
+  vertical(ctx, s, sky.stone, 30)
+  clipped(ctx, s, () => {
+    for (let row = 0, y = s.y; y < s.y + s.h; row++, y += COURSE) {
+      if (row) seam(ctx, { x: s.x, y, w: s.w, h: 2 })
+      let x = s.x - ((row * 37) % 60)
+      for (let i = row; x < s.x + s.w; i++) {
+        const w = STONE_WIDTHS[i % STONE_WIDTHS.length]
+        if (x > s.x) seam(ctx, { x, y, w: 2, h: COURSE })
+        if (row % 3 === 1) carving(ctx, { x: x + 2, y: y + 2, w: w - 2, h: COURSE - 2 })
+        if ((i * 5 + row * 3) % 4 === 0) moss(ctx, x + 2, y + COURSE)
+        x += w
+      }
+    }
+  })
+  edges(ctx, s, COLOR.lip)
+  ctx.fillStyle = COLOR.moss
+  for (let x = s.x + 8; x < s.x + s.w - 8; x += 23) ctx.fillRect(x, s.y, 5 + (x % 7), 3 + (x % 3))
+}
+
+// Stepped-fret motif cut into a stone: two nested outlines and a sunken center.
+function carving(ctx, { x, y, w, h }) {
+  ctx.strokeStyle = COLOR.seam
+  ctx.lineWidth = 1.5
+  ctx.strokeRect(x + 7, y + 8, w - 14, h - 16)
+  ctx.strokeRect(x + 12, y + 12, w - 24, h - 24)
+  ctx.fillStyle = COLOR.seam
+  ctx.fillRect(x + w / 2 - 2, y + h / 2 - 2, 4, 4)
+}
+
+// A tuft hanging out of a joint at x, y.
+function moss(ctx, x, y) {
+  ctx.fillStyle = COLOR.moss
+  ctx.beginPath()
+  ctx.ellipse(x + 2, y, 7, 3.5, 0, 0, TAU)
+  ctx.ellipse(x + 5, y + 5, 2.5, 5, 0, 0, TAU)
+  ctx.fill()
 }
 
 // Lit top lip, softly shaded right edge: light comes from the upper left everywhere.
