@@ -63,42 +63,61 @@ function dropPlayer(players, conn, handlers) {
   handlers.onLeave(conn.peer)
 }
 
-// handlers: { onSnapshot(snapshot), onClose(reason) }. onClose fires at most once.
+// Joining gives up after this. When two browsers can't find a route to each other
+// (strict NAT, mobile data, relay down), WebRTC can stay "checking" without ever failing.
+const JOIN_TIMEOUT_MS = 15000
+
+// handlers: { onSnapshot(snapshot), onClose(reason) }. onClose fires at most once, only after joining.
 export function joinRoom(code, handlers) {
   return new Promise((resolve, reject) => {
     const peer = new Peer()
-    let opened = false
-    let closed = false
-    let lastSeen = Date.now()
-    let watchdog
-
-    const close = (reason) => {
-      if (closed) return
-      closed = true
-      clearInterval(watchdog)
+    let link = null // set once connected: { close(reason) }
+    const fail = (err) => {
+      clearTimeout(timer)
       peer.destroy()
-      handlers.onClose(reason)
+      reject(err)
     }
+    const timer = setTimeout(
+      () => fail(new Error(`no answer from host after ${JOIN_TIMEOUT_MS / 1000}s. A firewall or mobile network may be blocking it`)),
+      JOIN_TIMEOUT_MS,
+    )
+    const onError = (err) => (link ? link.close(`Connection error: ${err.message}`) : fail(err))
 
-    peer.on('error', (err) => (opened ? close(`Connection error: ${err.message}`) : reject(err)))
+    peer.on('error', onError)
     peer.on('open', (id) => {
       const conn = peer.connect(ID_PREFIX + code, { serialization: 'json' })
+      conn.on('error', onError) // failing before open emits 'error' but never 'close'
       conn.on('open', () => {
-        opened = true
-        watchdog = setInterval(() => {
-          if (Date.now() - lastSeen > TIMEOUT_MS) close('Lost connection to host')
-        }, 1000)
+        clearTimeout(timer)
+        link = watchHost(peer, conn, handlers)
         resolve({
           id,
           sendInput: ({ left, right }) => conn.open && conn.send({ type: 'input', left, right }),
         })
       })
-      conn.on('data', (msg) => {
-        lastSeen = Date.now()
-        if (msg?.type === 'full') close('Room is full')
-        else if (msg?.type === 'snapshot') handlers.onSnapshot(msg)
-      })
-      conn.on('close', () => close('Host left'))
     })
   })
+}
+
+// Connected: route the host's messages; silence means the host is gone.
+function watchHost(peer, conn, handlers) {
+  let closed = false
+  let lastSeen = Date.now()
+  const close = (reason) => {
+    if (closed) return
+    closed = true
+    clearInterval(watchdog)
+    peer.destroy()
+    handlers.onClose(reason)
+  }
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastSeen > TIMEOUT_MS) close('Lost connection to host')
+  }, 1000)
+  conn.on('data', (msg) => {
+    lastSeen = Date.now()
+    if (msg?.type === 'full') close('Room is full')
+    else if (msg?.type === 'snapshot') handlers.onSnapshot(msg)
+  })
+  conn.on('close', () => close('Host left'))
+  return { close }
 }
