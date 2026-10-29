@@ -47,6 +47,7 @@ export const COLOR = {
   seam: 'rgba(0,0,0,0.22)', // joints between concrete blocks and metal plates
   seamLit: 'rgba(255,255,255,0.14)',
   lip: 'rgba(255,255,255,0.35)', // lit top edge of blocks
+  edgeShade: 'rgba(0,0,0,0.22)', // their right edge, fading in
   rivetDark: 'rgba(0,0,0,0.4)',
   rust: 'rgba(170,80,30,0.45)', // streaks down ship hulls
   moss: '#6fae4e',

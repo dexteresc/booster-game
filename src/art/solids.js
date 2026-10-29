@@ -60,7 +60,7 @@ function drawPlanks(ctx, s, sky) {
     rivets(ctx, s.y + BOARD / 2, { x0: s.x + 5, x1: s.x + s.w, step: Math.max(10, s.w - 10) })
     rivets(ctx, s.y + s.h - BOARD / 2, { x0: s.x + 5, x1: s.x + s.w, step: Math.max(10, s.w - 10) })
   })
-  edges(ctx, s, COLOR.lip, COLOR.strata)
+  edges(ctx, s, COLOR.lip)
 }
 
 // Big riveted hull plates with rust streaking down from the rivets.
@@ -79,7 +79,7 @@ function drawHull(ctx, s, sky) {
       rivets(ctx, y + 6, { x0: s.x + 8, x1: s.x + s.w, step: 16 })
     }
   })
-  edges(ctx, s, light, COLOR.metalDark)
+  edges(ctx, s, light)
 }
 
 function drawConcrete(ctx, s, sky) {
@@ -90,7 +90,7 @@ function drawConcrete(ctx, s, sky) {
       for (let x = s.x + (row % 2 ? BLOCK.w / 2 : BLOCK.w); x < s.x + s.w; x += BLOCK.w) seam(ctx, { x, y, w: 2, h: BLOCK.h })
     }
   })
-  edges(ctx, s, COLOR.lip, COLOR.strata)
+  edges(ctx, s, COLOR.lip)
 }
 
 function drawMetal(ctx, s, sky) {
@@ -109,7 +109,7 @@ function drawMetal(ctx, s, sky) {
       }
     }
   })
-  edges(ctx, s, light, COLOR.metalDark)
+  edges(ctx, s, light)
 }
 
 // Mustard with dark diagonal stripes: mark edges that bite.
@@ -132,7 +132,7 @@ function drawHazard(ctx, s, sky) {
   shade.addColorStop(1, 'rgba(0,0,0,0.3)')
   ctx.fillStyle = shade
   ctx.fillRect(s.x, s.y, s.w, s.h)
-  edges(ctx, s, COLOR.lip, COLOR.strata)
+  edges(ctx, s, COLOR.lip)
 }
 
 // Cream wall panels with corner rivets and an orange trim band every few rows.
@@ -157,41 +157,48 @@ function drawPanel(ctx, s, sky) {
       }
     }
   })
-  edges(ctx, s, COLOR.lip, COLOR.strata)
+  edges(ctx, s, COLOR.lip)
 }
 
-// Glass blocks in a gunmetal frame; some light up after dark.
+// Glass blocks in a gunmetal frame, stretched a little so only whole panes fit; some light up after dark.
 function drawGlass(ctx, s, sky) {
   const [top, bottom] = sky.glass
+  const cols = Math.max(1, Math.round(s.w / PANE))
+  const rows = Math.max(1, Math.round(s.h / PANE))
+  const pw = s.w / cols
+  const ph = s.h / rows
   ctx.fillStyle = sky.metal[1]
   ctx.fillRect(s.x, s.y, s.w, s.h)
-  clipped(ctx, s, () => {
-    for (let row = 0, y = s.y; y < s.y + s.h; row++, y += PANE) {
-      for (let col = 0, x = s.x; x < s.x + s.w; col++, x += PANE) {
-        const g = ctx.createLinearGradient(0, y, 0, y + PANE)
-        g.addColorStop(0, top)
-        g.addColorStop(1, bottom)
-        ctx.fillStyle = g
-        ctx.fillRect(x + 3, y + 3, PANE - 6, PANE - 6)
-        if (sky.windows && (col * 7 + row * 13) % 5 === 0) {
-          ctx.fillStyle = COLOR.windowLight
-          ctx.globalAlpha = 0.45
-          ctx.fillRect(x + 3, y + 3, PANE - 6, PANE - 6)
-          ctx.globalAlpha = 1
-        }
-        ctx.fillStyle = COLOR.gloss
-        ctx.fillRect(x + 5, y + 5, PANE - 14, 2)
-        ctx.fillRect(x + 5, y + 5, 2, PANE - 14)
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = s.x + col * pw
+      const y = s.y + row * ph
+      const g = ctx.createLinearGradient(0, y, 0, y + ph)
+      g.addColorStop(0, top)
+      g.addColorStop(1, bottom)
+      ctx.fillStyle = g
+      ctx.fillRect(x + 3, y + 3, pw - 6, ph - 6)
+      if (sky.windows && (col * 7 + row * 13) % 5 === 0) {
+        ctx.fillStyle = COLOR.windowLight
+        ctx.globalAlpha = 0.45
+        ctx.fillRect(x + 3, y + 3, pw - 6, ph - 6)
+        ctx.globalAlpha = 1
       }
+      ctx.fillStyle = COLOR.gloss
+      ctx.fillRect(x + 5, y + 5, Math.max(0, pw - 14), 2)
+      ctx.fillRect(x + 5, y + 5, 2, Math.max(0, ph - 14))
     }
-  })
-  edges(ctx, s, sky.metal[0], COLOR.metalDark)
+  }
+  edges(ctx, s, sky.metal[0])
 }
 
-// Lit top lip, shaded right edge: light comes from the upper left everywhere.
-function edges(ctx, s, lip, shade) {
+// Lit top lip, softly shaded right edge: light comes from the upper left everywhere.
+function edges(ctx, s, lip) {
+  const shade = ctx.createLinearGradient(s.x + s.w - 6, 0, s.x + s.w, 0)
+  shade.addColorStop(0, 'rgba(0,0,0,0)')
+  shade.addColorStop(1, COLOR.edgeShade)
   ctx.fillStyle = shade
-  ctx.fillRect(s.x + s.w - 3, s.y, 3, s.h)
+  ctx.fillRect(s.x + s.w - 6, s.y, 6, s.h)
   ctx.fillStyle = lip
   ctx.fillRect(s.x, s.y, s.w, 3)
 }

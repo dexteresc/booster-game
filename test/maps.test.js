@@ -22,7 +22,7 @@ assert.throws(broken((m) => (m.bases.blue.pad.w = 20)), /bases\.blue\.pad\.w mus
 assert.throws(broken((m) => (m.cannons[0].team = 'green')), /cannons\[0\]\.team/)
 assert.throws(broken((m) => (m.solids[1].kind = 'cheese')), /solids\[1\]\.kind must be one of water,concrete,metal,hazard,panel,glass,planks,hull/)
 assert.throws(broken((m) => (m.solids[0].water = true)), /solids\[0\]\.water is no longer a field/)
-assert.throws(broken((m) => m.props.push({ kind: 'tree', x: 0, y: 0 })), /props\[0\]\.kind must be one of lamp,starburst/)
+assert.throws(broken((m) => (m.props = [{ kind: 'tree', x: 0, y: 0 }])), /props\[0\]\.kind must be one of lamp,starburst/)
 assert.equal(parseMap({ ...canyon, extra: 1 }, 'test').extra, undefined, 'unknown fields dropped')
 assert.throws(broken((m) => (m.biome = 'moon')), /biome must be one of desert,jungle,nautic/)
 
