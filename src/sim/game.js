@@ -1,4 +1,4 @@
-import { FOOT_Y, NO_INPUT, spawnRocket, stepRocket } from './rocket.js'
+import { FOOT_Y, NO_INPUT, SLOT_SPACING, spawnRocket, stepRocket } from './rocket.js'
 import { cannonPedestal, stepBullets, stepCannons } from './cannon.js'
 
 // Pure simulation: no DOM, no randomness, fixed timestep. Same inputs → same
@@ -35,7 +35,7 @@ export function createGame(map, players, mode = 'pve') {
 
 // Spawn slots are spaced along the team's pad; a leaving player frees theirs.
 export function maxPlayersPerTeam(game, team) {
-  return Math.floor((game.map.bases[team].pad.w - 40) / 40) + 1
+  return Math.floor(game.map.bases[team].pad.w / SLOT_SPACING)
 }
 
 export function addPlayer(game, { id, team, name = '' }) {

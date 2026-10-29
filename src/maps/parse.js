@@ -8,12 +8,14 @@
 // 'pvp' = team vs team: symmetric, both teams have a flag and cannons near their base.
 // Returns a clean copy with only known fields; throws naming the bad field.
 
+import { SLOT_SPACING } from '../sim/rocket.js'
+
 export const TEAMS = ['blue', 'red']
 export const MODES = ['pve', 'pvp']
 export const BIOME_NAMES = ['desert', 'jungle', 'nautic']
 export const SOLID_KINDS = ['water', 'concrete', 'metal', 'hazard', 'panel', 'glass', 'planks', 'hull', 'stone'] // art in src/art/solids.js
 export const PROP_KINDS = ['lamp', 'starburst', 'beacon', 'tank', 'radar', 'saucer', 'palm', 'statue'] // art in src/art/props/
-const MIN_PAD_WIDTH = 40 // room for one spawn slot
+export const MIN_PAD_WIDTH = SLOT_SPACING // room for one spawn slot
 
 export function parseMap(raw, label) {
   const at = (path) => `Map "${label}": ${path}`

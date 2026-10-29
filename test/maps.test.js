@@ -1,16 +1,22 @@
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
-import { parseMap } from '../src/maps/parse.js'
+import { TEAMS, parseMap } from '../src/maps/parse.js'
 import { mirrorMap } from '../src/editor/model.js'
+import { createGame, maxPlayersPerTeam } from '../src/sim/game.js'
+import { TEAM_SIZE } from '../src/lobby.js'
 
 const dir = new URL('../src/maps/', import.meta.url)
 
 // Every shipped map parses, and parsing keeps it as is. PvP maps are fair: mirroring changes nothing.
+// PvP pads fit a full lobby team, or the last player to join can't spawn.
 const sorted = (map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [k, Array.isArray(v) ? v.map((o) => JSON.stringify(o)).sort() : v]))
 for (const file of readdirSync(dir).filter((f) => f.endsWith('.json'))) {
   const raw = JSON.parse(readFileSync(new URL(file, dir), 'utf8'))
   assert.deepEqual(parseMap(raw, file), raw, `${file} should parse unchanged`)
-  if (raw.mode === 'pvp') assert.deepEqual(sorted({ ...raw, ...mirrorMap(raw) }), sorted(raw), `${file}: PvP map should be symmetric (editor: Mirror)`)
+  if (raw.mode !== 'pvp') continue
+  assert.deepEqual(sorted({ ...raw, ...mirrorMap(raw) }), sorted(raw), `${file}: PvP map should be symmetric (editor: Mirror)`)
+  const game = createGame(parseMap(raw, file), [], 'pvp')
+  for (const team of TEAMS) assert(maxPlayersPerTeam(game, team) >= TEAM_SIZE, `${file}: ${team} pad should fit ${TEAM_SIZE} players`)
 }
 
 const canyon = JSON.parse(readFileSync(new URL('canyon.json', dir), 'utf8'))

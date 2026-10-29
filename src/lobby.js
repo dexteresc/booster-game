@@ -1,9 +1,9 @@
 import { TEAM } from './art/theme.js'
+import { TEAMS } from './maps/parse.js'
 
 // PvP lobby: who's in and on which team. The host owns the list and sends it to
 // joiners as { type: 'lobby', players, mapName } until the match starts.
-export const TEAM_SIZE = 4
-const TEAMS = ['blue', 'red']
+export const TEAM_SIZE = 4 // maps.test.js checks every PvP pad has room for this many
 
 const countOn = (players, team) => players.filter((p) => p.team === team).length
 

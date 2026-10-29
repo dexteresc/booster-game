@@ -1,12 +1,13 @@
 import { propBounds } from '../art/props/index.js'
+import { MIN_PAD_WIDTH } from '../maps/parse.js'
+import { cannonPedestal } from '../sim/cannon.js'
 
 // Editor state and edits on it. No DOM here.
 // An item is { kind: 'solid' | 'pad' | 'cannon' | 'prop', obj } where obj lives inside editor.map.
 // Solids and pads are rects; cannons and props stand on a surface.
 
 export const GRID = 10
-const MIN_PAD_WIDTH = 40
-const CANNON_BOX = { halfWidth: 14, height: 30 }
+const CANNON_HEIGHT = 30 // click box: pedestal wide, this tall
 const SURFACE_REACH = 40 // a cannon or prop dropped this far below a top edge still lands on it
 
 export function createEditor(name, map) {
@@ -161,7 +162,8 @@ export function itemAt(map, p) {
 export function boundsOf({ kind, obj }) {
   if (kind === 'prop') return propBounds(obj)
   if (kind !== 'cannon') return obj
-  return { x: obj.x - CANNON_BOX.halfWidth, y: obj.y - CANNON_BOX.height, w: CANNON_BOX.halfWidth * 2, h: CANNON_BOX.height }
+  const { x, w } = cannonPedestal(obj)
+  return { x, y: obj.y - CANNON_HEIGHT, w, h: CANNON_HEIGHT }
 }
 
 // Which edges of rect r are within tol of p: { l, r, t, b } or null.

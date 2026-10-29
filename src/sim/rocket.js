@@ -8,10 +8,11 @@ export const FOOT_Y = 18
 const MAX_FOOT_SINK = 8 // a foot deeper than this (beyond this tick's fall) hit a wall side, not a top surface
 
 export const NO_INPUT = Object.freeze({ left: false, right: false })
+export const SLOT_SPACING = 40 // spawn slots sit this far apart along a pad, the first one this far in
 
 export function spawnRocket(rocket, pad) {
   Object.assign(rocket, {
-    x: pad.x + 40 + rocket.slot * 40,
+    x: pad.x + (rocket.slot + 1) * SLOT_SPACING,
     y: pad.y - FOOT_Y,
     vx: 0,
     vy: 0,
