@@ -121,7 +121,13 @@ ui.map.onchange = () => {
   else refreshLobby()
 }
 
-ui.leave.onclick = () => (location.href = location.pathname)
+// Second click confirms: a stray tap shouldn't end the game (hosting: for everyone). Not a confirm()
+// dialog, that would freeze the host's sim for all players while it's open.
+ui.leave.onclick = () => {
+  const asking = ui.leave.dataset.label !== undefined
+  if (asking) location.href = location.pathname
+  else flashLabel(ui.leave, 'Sure? Click again', false)
+}
 
 // Host only: what's in the top bar. Joiners just get Leave.
 function refreshControls() {
@@ -196,7 +202,6 @@ function teamForJoiner() {
 // Returns whether there's a room.
 async function openRoom() {
   if (room) return true
-  ui.invite.disabled = true
   try {
     room = await hostRoom(hostHandlers)
     ui.status.hidden = true // an earlier failure no longer applies
@@ -205,21 +210,44 @@ async function openRoom() {
     console.error('Creating room failed', err)
     showStatus(`Couldn't create room: ${err.message}`)
     return false
-  } finally {
-    ui.invite.disabled = false
   }
 }
 
-async function copyInvite() {
-  if (!(await openRoom())) return
+// The top bar's Invite or the lobby's Copy invite link: feedback shows on the button that was clicked.
+async function copyInvite({ currentTarget: button }) {
+  if (!room) relabel(button, 'Opening room…', { busy: true })
+  if (!(await openRoom())) {
+    flashLabel(button, "Couldn't open room", false)
+    return
+  }
   const link = `${location.origin}${location.pathname}#${room.code}`
   try {
     await navigator.clipboard.writeText(link)
-    showStatus(`Room ${room.code} · link copied: ${link}`)
+    flashLabel(button, 'Link copied ✓', true)
   } catch (err) {
     console.error('Clipboard write failed', err)
-    showStatus(`Room ${room.code} · share this link: ${link}`)
+    flashLabel(button, "Couldn't copy", false)
+    showStatus(`Share this link: ${link}`)
   }
+}
+
+// Button text that says what just happened, then goes back to the button's own label.
+const FLASH_SECONDS = 2
+function relabel(button, text, { busy = false, ok } = {}) {
+  button.dataset.label ??= button.textContent
+  clearTimeout(button.labelTimer)
+  button.textContent = text
+  button.disabled = busy
+  button.classList.toggle('ok', ok === true)
+  button.classList.toggle('failed', ok === false)
+}
+
+function flashLabel(button, text, ok) {
+  relabel(button, text, { ok })
+  button.labelTimer = setTimeout(() => {
+    relabel(button, button.dataset.label)
+    delete button.dataset.label
+  }, FLASH_SECONDS * 1000)
 }
 
 ui.invite.onclick = copyInvite

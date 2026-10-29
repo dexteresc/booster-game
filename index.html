@@ -39,6 +39,44 @@
         border-radius: 6px;
         padding: 4px 10px;
       }
+      /* Button states, shared by the top bar and the panels */
+      #controls :is(button, select),
+      .panel button {
+        cursor: pointer;
+        transition:
+          background 0.12s,
+          border-color 0.12s;
+      }
+      #controls :is(button, select):hover:not(:disabled, .ok, .failed),
+      .panel button:hover:not(:disabled, .ok, .failed) {
+        background: rgba(255, 255, 255, 0.18);
+        border-color: #ff7a1a;
+      }
+      #controls button:active:not(:disabled),
+      .panel button:active:not(:disabled) {
+        background: rgba(255, 122, 26, 0.35);
+        transform: translateY(1px);
+      }
+      #controls :is(button, select):focus-visible,
+      .panel :is(button, input):focus-visible {
+        outline: 2px solid #ff7a1a;
+        outline-offset: 2px;
+      }
+      #controls button:disabled,
+      .panel button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      #controls button.ok,
+      .panel button.ok {
+        border-color: #3ccf6e;
+        background: rgba(60, 207, 110, 0.2);
+      }
+      #controls button.failed,
+      .panel button.failed {
+        border-color: #e0312b;
+        background: rgba(224, 49, 43, 0.25);
+      }
       #status {
         position: fixed;
         bottom: 8px;
@@ -86,9 +124,6 @@
         border-radius: 6px;
         padding: 6px 12px;
       }
-      .panel button:disabled {
-        opacity: 0.4;
-      }
       .panel label {
         display: block;
         margin-bottom: 16px;
@@ -112,10 +147,6 @@
         padding: 8px;
         text-align: left;
         cursor: pointer;
-      }
-      .menu-modes button:hover,
-      .menu-modes button:focus-visible {
-        border-color: #ff7a1a;
       }
       .menu-modes canvas {
         display: block;
@@ -206,8 +237,8 @@
     <canvas></canvas>
     <div id="controls">
       <select id="map" aria-label="Map" hidden></select>
-      <button id="invite" hidden>Invite</button>
-      <button id="leave" hidden>Leave</button>
+      <button id="invite" aria-live="polite" hidden>Invite</button>
+      <button id="leave" aria-live="polite" hidden>Leave</button>
       <button id="tune-toggle" aria-label="Tuning panel">⚙</button>
     </div>
     <div id="menu" class="panel" hidden>
@@ -230,7 +261,7 @@
     <div id="lobby" class="panel" hidden>
       <h1>LOBBY</h1>
       <p class="lobby-room"></p>
-      <button class="lobby-invite">Copy invite link</button>
+      <button class="lobby-invite" aria-live="polite">Copy invite link</button>
       <div class="lobby-teams"></div>
       <p class="lobby-wait">Waiting for the host to start…</p>
       <button class="lobby-start">Start match</button>
