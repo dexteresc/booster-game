@@ -23,7 +23,7 @@ export function createGame(map, players, mode = 'pve') {
     winner: null,
     wonAt: null,
     events: [], // this tick only: { type: 'explode' | 'capture', ... }
-    map: { ...map, solids: [...map.solids, ...pads, ...map.cannons.map(cannonPedestal)] },
+    map: { ...map, solids: [...map.solids.map((s) => (s.spin ? { ...s, angle: 0 } : s)), ...pads, ...map.cannons.map(cannonPedestal)] },
     teams: Object.fromEntries(Object.keys(map.bases).map((team) => [team, { score: 0, flagCarrier: null, flag: hasFlag(mode, team) }])),
     rockets: [],
     cannons: map.cannons.map((c) => ({ ...c, aim: -Math.PI / 2, cooldown: 0 })),
@@ -53,6 +53,11 @@ export function removePlayer(game, id) {
   game.rockets = game.rockets.filter((r) => r.id !== id)
 }
 
+// Spinning solids as they stand at game.time. Joiners call this too: they never step.
+export function turnSolids(game) {
+  for (const s of game.map.solids) if (s.spin) s.angle = s.spin * game.time
+}
+
 // Foot of the flag pole when the flag is home.
 export function flagHome(base) {
   return { x: base.pad.x + base.pad.w / 2, y: base.pad.y }
@@ -63,6 +68,7 @@ export function step(game, inputs, config) {
   const dt = 1 / config.tickRate
   game.time += dt
   game.events = []
+  turnSolids(game)
 
   for (const rocket of game.rockets) {
     if (!rocket.alive) {

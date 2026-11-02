@@ -1,8 +1,10 @@
 import { BIOMES, COLOR } from './theme.js'
 import { TAU, additive, glowDot, rand } from './brush.js'
+import { bakeAsteroid } from './asteroid.js'
 
 // Distant hills behind the map in four parallax layers, shaped by the biome:
-// butte = flat-topped mesas, canopy = rounded jungle hills, island = low islands with lighthouses.
+// butte = flat-topped mesas, canopy = rounded jungle hills, island = low islands with lighthouses,
+// belt = distant asteroids.
 // Random layout, generated once per map by layoutHills().
 
 // Far → near. k: parallax (0 pinned to the screen, 1 moves with the world). base: share of map
@@ -13,19 +15,23 @@ const LAYERS = [
   { k: 0.46, base: 0.88, rise: 200, size: 1, lit: 0.4 },
   { k: 0.62, base: 0.92, rise: 150, size: 1.2, lit: 0.6 },
 ]
-const SHAPES = { butte, canopy, island }
+const SHAPES = { butte, canopy, island, belt }
 
 export function layoutHills(map, sky, biome) {
   const { hills: shape, tint } = BIOMES[biome] ?? {}
   if (!SHAPES[shape]) throw new Error(`layoutHills: unknown biome "${biome}", expected one of ${Object.keys(BIOMES)}`)
   return LAYERS.map((l, i) => {
     const base = map.height * l.base
-    const layer = { ...l, base, lit: Math.min(1, l.lit * sky.windows) }
-    return { ...layer, color: sky.mesas[i], tint, ...SHAPES[shape](map.width, layer) }
+    const layer = { ...l, base, lit: Math.min(1, l.lit * sky.windows), color: sky.mesas[i] }
+    return { ...layer, tint, ...SHAPES[shape](map.width, layer) }
   })
 }
 
 export function drawHills(ctx, m, { sky, map }, clock) {
+  if (m.rocks) {
+    drawRocks(ctx, m.rocks, m.k)
+    return
+  }
   ctx.fillStyle = m.color
   ctx.fill(m.path)
   if (m.tint) {
@@ -99,6 +105,35 @@ function island(width, layer) {
     b.y -= 26 * layer.size
   }
   return hills
+}
+
+// Far-off asteroids in a band around the layer's base, lit like the near ones but in the layer's dark
+// distance colour, each a scaled copy of one of a few baked rocks. Nothing is filled below them.
+function belt(width, { base, rise, size, color }) {
+  const body = [color, color, color]
+  const bake = (w) => bakeAsteroid(w, Math.round(w * rand(0.65, 1)), body)
+  const small = Array.from({ length: 7 }, () => bake(Math.round(44 * size)))
+  const big = Array.from({ length: 3 }, () => bake(Math.round(132 * size)))
+  const rocks = Array.from({ length: (width + 3000) / (90 * size) }, () => {
+    const large = Math.random() < 0.08
+    const image = (large ? big : small)[Math.floor(Math.random() * (large ? big : small).length)]
+    const w = rand(8, 44) * size * (large ? 3 : 1)
+    return { x: rand(-1500, width + 1500), y: base - rand(-0.4, 1.8) * rise, w, h: (w * image.height) / image.width, image }
+  })
+  return { rocks: rocks.sort((a, b) => a.x - b.x) }
+}
+
+// Faded by distance (k: parallax), so they never read as rocks you can hit.
+function drawRocks(ctx, rocks, k) {
+  const { a, e } = ctx.getTransform()
+  const left = -e / a
+  const right = (ctx.canvas.width - e) / a
+  ctx.globalAlpha = 0.15 + k * 0.5
+  for (const r of rocks) {
+    if (r.x + r.w / 2 < left || r.x - r.w / 2 > right) continue
+    ctx.drawImage(r.image, r.x - r.w / 2, r.y - r.h / 2, r.w, r.h)
+  }
+  ctx.globalAlpha = 1
 }
 
 // Hills along the width, filled far below the base so parallax never shows a gap.

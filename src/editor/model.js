@@ -1,6 +1,7 @@
 import { propBounds } from '../art/props/index.js'
-import { MIN_PAD_WIDTH } from '../maps/parse.js'
+import { MIN_PAD_WIDTH, SHAPES } from '../maps/parse.js'
 import { cannonPedestal } from '../sim/cannon.js'
+import { topAt } from '../sim/geometry.js'
 
 // Editor state and edits on it. No DOM here.
 // An item is { kind: 'solid' | 'pad' | 'cannon' | 'prop', obj } where obj lives inside editor.map.
@@ -65,6 +66,16 @@ export function flipSelected(editor) {
   remember(editor)
   if (selected.obj.flip) delete selected.obj.flip
   else selected.obj.flip = true
+}
+
+// Cycles the selected solid square → round → lumpy → square. Left out of the file when square.
+export function shapeSelected(editor) {
+  const { selected } = editor
+  if (selected?.kind !== 'solid') return
+  remember(editor)
+  const next = SHAPES[SHAPES.indexOf(selected.obj.shape) + 1]
+  if (next) selected.obj.shape = next
+  else delete selected.obj.shape
 }
 
 // Pads can't go: every map needs both bases.
@@ -136,11 +147,11 @@ export function placeOnSurface(map, obj, at) {
   obj.y = surfaceBelow(map, obj.x, at.y) ?? snap(at.y)
 }
 
-// Nothing stands on the sea.
 function surfaceBelow(map, x, y) {
-  const tops = [...map.solids.filter((s) => s.kind !== 'water'), ...Object.values(map.bases).map((b) => b.pad)]
-    .filter((s) => x >= s.x && x <= s.x + s.w && s.y >= y - SURFACE_REACH)
-    .map((s) => s.y)
+  const tops = [...map.solids, ...Object.values(map.bases).map((b) => b.pad)]
+    .filter((s) => x >= s.x && x <= s.x + s.w)
+    .map((s) => topAt(s, x)?.y)
+    .filter((top) => top >= y - SURFACE_REACH)
   return tops.length ? Math.min(...tops) : null
 }
 

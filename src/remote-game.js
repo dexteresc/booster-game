@@ -1,4 +1,4 @@
-import { createGame } from './sim/game.js'
+import { createGame, turnSolids } from './sim/game.js'
 import { NO_INPUT } from './sim/rocket.js'
 import { wrapAngle } from './sim/geometry.js'
 import { decodeSnapshot } from './snapshot.js'
@@ -87,6 +87,7 @@ export function blend(game, from, to = from, at) {
   const t = to.time > from.time ? Math.min(Math.max((at - from.time) / (to.time - from.time), 0), 1) : 0
   const since = Math.max(0, at - from.time)
   game.time = from.time + since
+  turnSolids(game)
   game.winner = from.winner
   for (const [team, state] of Object.entries(from.teams)) Object.assign(game.teams[team], state)
   for (const rocket of game.rockets) blendRocket(rocket, from.rockets, to.rockets, t)

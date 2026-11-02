@@ -9,6 +9,7 @@ import { TAU, additive, chrome, glowDot, shaded } from './brush.js'
 // Ogive hull; roughly the hull collision points in sim/rocket.js.
 const BODY = new Path2D('M0 -26 C5 -22 8 -14 8 -6 L8 6 Q8 9 5 9 L-5 9 Q-8 9 -8 6 L-8 -6 C-8 -14 -5 -22 0 -26 Z')
 const LASER_LENGTH = 24
+export const NOZZLE_Y = 16 // engine exit, below the rocket's center
 
 // isMe: outline the local player's rocket so it stands out in multiplayer.
 export function drawRocket(ctx, r, engineOffset, isMe = false) {
@@ -18,8 +19,8 @@ export function drawRocket(ctx, r, engineOffset, isMe = false) {
   ctx.rotate(r.angle)
 
   additive(ctx, () => {
-    if (r.input.left) drawPlume(ctx, -engineOffset, 16)
-    if (r.input.right) drawPlume(ctx, engineOffset, 16)
+    if (r.input.left) drawPlume(ctx, -engineOffset, NOZZLE_Y)
+    if (r.input.right) drawPlume(ctx, engineOffset, NOZZLE_Y)
   })
   drawLegs(ctx, colors.accent)
 
@@ -151,6 +152,7 @@ function drawPlume(ctx, x, y) {
   ctx.quadraticCurveTo(x, y + len * 2, x + 4.5, y)
   ctx.fill()
   glowDot(ctx, x, y + 2, { radius: 10, color: COLOR.flame[1], alpha: 0.4 })
+  glowDot(ctx, x, y + 14, { radius: 70, color: COLOR.flame[1], alpha: 0.16 }) // lights up whatever is near
 }
 
 // Ray-gun turret. firing: show a muzzle flash this frame.
@@ -164,6 +166,7 @@ export function drawCannon(ctx, c, firing, clock) {
   ctx.fillStyle = chrome(ctx, p.x, p.x + p.w)
   ctx.fillRect(p.x, p.y, p.w, 1.5)
 
+  additive(ctx, () => glowDot(ctx, c.x, c.y - PIVOT_HEIGHT, { radius: 55, color: accent, alpha: 0.14 }))
   drawBarrel(ctx, c, laser, firing)
   drawDome(ctx, c, accent)
   drawOrbit(ctx, c, accent, clock)

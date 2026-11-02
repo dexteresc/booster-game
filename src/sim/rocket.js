@@ -1,4 +1,4 @@
-import { solidAt, wrapAngle } from './geometry.js'
+import { rotate, solidAt, topAt, wrapAngle } from './geometry.js'
 
 // Local shape: origin = center of mass, -y = nose. Angle 0 = upright, positive = clockwise.
 // Hull points crash on any contact; only the feet may touch ground.
@@ -6,6 +6,7 @@ const HULL = [[0, -24], [-8, -10], [8, -10], [-8, 0], [8, 0], [-8, 8], [8, 8]]
 export const FEET = [[-13, 18], [13, 18]]
 export const FOOT_Y = 18
 const MAX_FOOT_SINK = 8 // a foot deeper than this (beyond this tick's fall) hit a wall side, not a top surface
+const MAX_SLOPE = 1 // feet on a curved top steeper than 45° slip off: crash
 
 export const NO_INPUT = Object.freeze({ left: false, right: false })
 export const SLOT_SPACING = 40 // spawn slots sit this far apart along a pad, the first one this far in
@@ -37,7 +38,7 @@ export function stepRocket(r, map, config, dt) {
 
   const push = left + right
   r.vx += push * Math.sin(r.angle) * dt
-  r.vy += (config.world.gravity - push * Math.cos(r.angle)) * dt
+  r.vy += (config.world.gravity * (map.gravity ?? 1) - push * Math.cos(r.angle)) * dt
   const keep = Math.max(0, 1 - drag * dt)
   r.vx *= keep
   r.vy *= keep
@@ -47,10 +48,9 @@ export function stepRocket(r, map, config, dt) {
   return resolveContact(r, map, config.rocket.safeLandingAngle, dt)
 }
 
-function toWorld(r, [lx, ly]) {
-  const c = Math.cos(r.angle)
-  const s = Math.sin(r.angle)
-  return [r.x + lx * c - ly * s, r.y + lx * s + ly * c]
+export function toWorld(r, [lx, ly]) {
+  const [dx, dy] = rotate(lx, ly, r.angle)
+  return [r.x + dx, r.y + dy]
 }
 
 function resolveContact(r, map, safeLandingAngle, dt) {
@@ -63,8 +63,9 @@ function resolveContact(r, map, safeLandingAngle, dt) {
     const [x, y] = toWorld(r, p)
     const rect = solidAt(map, x, y)
     if (!rect) continue
-    if (rect.kind === 'water' || y - rect.y > maxSink) return true // sea is never a landing spot
-    surface = Math.min(surface, rect.y)
+    const top = topAt(rect, x)
+    if (!top || y - top.y > maxSink || top.slope > MAX_SLOPE) return true
+    surface = Math.min(surface, top.y)
   }
   if (surface === Infinity) return false
 

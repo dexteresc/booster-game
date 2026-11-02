@@ -1,13 +1,15 @@
 import { flagHome } from './sim/game.js'
 import { COLOR, FONT, TEAM } from './art/theme.js'
-import { fitCanvas } from './art/brush.js'
+import { clamp, fitCanvas } from './art/brush.js'
 import { createScenery, drawFlag, drawPad, randomWeather } from './art/scenery.js'
 import { drawSolid } from './art/solids.js'
 import { drawProp } from './art/props/index.js'
 import { drawCannon, drawLaser, drawRocket } from './art/sprites.js'
 import { createEffects } from './art/effects.js'
+import { createPost } from './art/post.js'
 
 const MUZZLE_FLASH = 0.08 // seconds after a shot
+const SHAKE = { strength: 16, reach: 900, decay: 7 } // explosions shake the camera: world units, distance, 1/s
 
 // Render-only state (camera, particles, banners) lives here, never in the sim.
 // What things look like lives in src/art/; this file decides what goes where.
@@ -16,6 +18,8 @@ export function createRenderer(canvas, config) {
   const view = {
     touch: matchMedia('(pointer: coarse)').matches,
     effects: createEffects(),
+    post: createPost(),
+    shake: 0,
     scenery: null,
     sceneryFor: null, // the game it was laid out for
     banner: null,
@@ -26,7 +30,7 @@ export function createRenderer(canvas, config) {
   return function draw(game, localId, events, dt) {
     view.clock += dt
     const { dpr, w, h } = fitCanvas(canvas)
-    applyEvents(view, events)
+    applyEvents(view, events, game.rockets.find((r) => r.id === localId))
     if (view.sceneryFor !== game) {
       view.scenery = createScenery(game.map, randomWeather(game.map.biome))
       view.sceneryFor = game
@@ -41,15 +45,21 @@ export function createRenderer(canvas, config) {
     const frame = { ctx, game, me, config, dt, dpr, w, h, cw: w / dpr, ch: h / dpr, scale: Math.max(w, h) / config.view.size }
     frame.cam = followCamera(view, frame)
     drawWorld(frame, view)
+    view.post(ctx, w, h, view.scenery.sky.bloom)
     drawHud(frame, view)
   }
 }
 
-function applyEvents(view, events) {
+function applyEvents(view, events, me) {
   for (const e of events) {
-    if (e.type === 'explode') view.effects.explode(e)
+    if (e.type === 'explode') explode(view, e, me)
     if (e.type === 'capture') view.banner = { text: `${TEAM[e.team].label} CAPTURED THE FLAG`, until: view.clock + 2 }
   }
+}
+
+function explode(view, at, me) {
+  view.effects.explode(at)
+  if (me) view.shake = Math.max(view.shake, SHAKE.strength * Math.max(0, 1 - Math.hypot(at.x - me.x, at.y - me.y) / SHAKE.reach))
 }
 
 // Eases view.cam toward the local rocket; returns the center clamped to the map.
@@ -58,9 +68,11 @@ function followCamera(view, { me, game, w, h, scale, dt }) {
   const follow = Math.min(1, dt * 6)
   view.cam.x += (me.x - view.cam.x) * follow
   view.cam.y += (me.y - view.cam.y) * follow
+  view.shake *= Math.exp(-SHAKE.decay * dt)
+  const jolt = () => (Math.random() * 2 - 1) * view.shake
   return {
-    x: clamp(view.cam.x, w / scale / 2, game.map.width - w / scale / 2),
-    y: clamp(view.cam.y, h / scale / 2, game.map.height - h / scale / 2),
+    x: clamp(view.cam.x, w / scale / 2, game.map.width - w / scale / 2) + jolt(),
+    y: clamp(view.cam.y, h / scale / 2, game.map.height - h / scale / 2) + jolt(),
   }
 }
 
@@ -74,8 +86,10 @@ function drawWorld({ ctx, game, me, config, dt, w, h, scale, cam }, { scenery, e
   drawFlags(ctx, game, clock)
   for (const c of game.cannons) drawCannon(ctx, c, c.cooldown > config.cannon.fireInterval - MUZZLE_FLASH, clock)
   for (const b of game.bullets) drawLaser(ctx, b)
+  for (const r of game.rockets) if (r.alive) effects.exhaust(r, config.rocket.engineOffset, dt)
+  effects.draw(ctx, dt) // under the rockets, so exhaust trails behind them
   for (const r of game.rockets) if (r.alive) drawRocket(ctx, r, config.rocket.engineOffset, r === me)
-  effects.draw(ctx, dt)
+  scenery.foreground(ctx, cam.x, cam.y, clock)
   scenery.water(ctx, cam.x, clock) // last: reflects everything above it
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   scenery.rain(ctx, cam.x * scale, cam.y * scale, clock)
@@ -198,8 +212,4 @@ function drawMessage({ ctx, me, cw, ch }, message) {
   ctx.shadowBlur = 16
   ctx.fillText(message, cw / 2, ch * 0.3)
   ctx.shadowBlur = 0
-}
-
-function clamp(v, lo, hi) {
-  return Math.min(Math.max(v, lo), hi)
 }

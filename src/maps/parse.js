@@ -1,18 +1,23 @@
 // Map format, checked wherever maps come in (game load, editor save on the dev server).
 // Rects are { x, y, w, h } with y pointing down. Solids block rockets; `kind` picks the look:
 // left out = rock, 'water' is sea (touching it crashes), the rest are building materials.
+// shape: 'round' fills the ellipse inside the rect instead (domes, tanks), 'lumpy' a rough potato outline
+// (asteroids); left out = rect. spin: turns the solid about its rect's center, radians per
+// second, clockwise; a spinning solid can't be landed on.
 // Props are decoration standing on a surface, no collision; `flip: true` mirrors one to face the
 // other way. Cannon x,y = the surface it stands on.
 // biome picks how rock, the hills and the weather look (src/art/theme.js BIOMES); left out = desert.
 // mode: 'pve' = co-op vs CPU, blue (players) steal red's flag past red cannons; left out = pve.
 // 'pvp' = team vs team: symmetric, both teams have a flag and cannons near their base.
+// gravity: share of config.world.gravity on this map (0.4 = floaty); left out = 1.
 // Returns a clean copy with only known fields; throws naming the bad field.
 
 import { SLOT_SPACING } from '../sim/rocket.js'
 
 export const TEAMS = ['blue', 'red']
 export const MODES = ['pve', 'pvp']
-export const BIOME_NAMES = ['desert', 'jungle', 'nautic']
+export const BIOME_NAMES = ['desert', 'jungle', 'nautic', 'belt']
+export const SHAPES = ['round', 'lumpy']
 export const SOLID_KINDS = ['water', 'concrete', 'metal', 'hazard', 'panel', 'glass', 'planks', 'hull', 'stone'] // art in src/art/solids.js
 export const PROP_KINDS = ['lamp', 'starburst', 'beacon', 'tank', 'radar', 'saucer', 'palm', 'statue'] // art in src/art/props/
 export const MIN_PAD_WIDTH = SLOT_SPACING // room for one spawn slot
@@ -23,6 +28,7 @@ export function parseMap(raw, label) {
   return {
     mode: oneOf(raw.mode ?? 'pve', MODES, at('mode')),
     biome: oneOf(raw.biome ?? 'desert', BIOME_NAMES, at('biome')),
+    ...(raw.gravity !== undefined && { gravity: positive(raw.gravity, at('gravity')) }),
     width: positive(raw.width, at('width')),
     height: positive(raw.height, at('height')),
     solids: list(raw.solids, at('solids')).map((s, i) => solid(s, at(`solids[${i}]`))),
@@ -35,7 +41,12 @@ export function parseMap(raw, label) {
 function solid(s, path) {
   const r = rect(s, path)
   if ('water' in s) throw new Error(`${path}.water is no longer a field, use "kind": "water"`)
-  return s.kind === undefined ? r : { ...r, kind: oneOf(s.kind, SOLID_KINDS, `${path}.kind`) }
+  return {
+    ...r,
+    ...(s.kind !== undefined && { kind: oneOf(s.kind, SOLID_KINDS, `${path}.kind`) }),
+    ...(s.shape !== undefined && { shape: oneOf(s.shape, SHAPES, `${path}.shape`) }),
+    ...(s.spin !== undefined && { spin: finite(s.spin, `${path}.spin`) }),
+  }
 }
 
 function pad(p, path) {

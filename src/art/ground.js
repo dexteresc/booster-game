@@ -1,10 +1,13 @@
 import { COLOR } from './theme.js'
-import { TAU } from './brush.js'
+import { TAU, hash } from './brush.js'
+import { drawLitAsteroid } from './asteroid.js'
 
 // The natural ground of each biome: what a 'rock' solid looks like there.
 // sky.ground[biome] = { body: [top, mid, base], lip }.
 
-export const GROUND_ART = { desert: drawSandstone, jungle: drawMossStone, nautic: drawBasalt }
+export const GROUND_ART = { desert: drawSandstone, jungle: drawMossStone, nautic: drawBasalt, belt: drawAsteroidSlab }
+// Ground that draws its round, lumpy or spinning rocks whole: outline, light and turn.
+export const SHAPED_GROUND_ART = { belt: drawLitAsteroid }
 
 const STRATA = 17
 const CRACK = 50 // moss stone: one crack per this many units of width
@@ -77,6 +80,20 @@ function drawBasalt(ctx, s, { body, lip }) {
   }
   ctx.fillStyle = COLOR.strata
   ctx.fillRect(s.x + s.w - 4, s.y, 4, s.h)
+  ctx.fillStyle = lip
+  ctx.fillRect(s.x, s.y, s.w, 2)
+}
+
+// Square asteroid rock: speckled dust under a lit lip.
+function drawAsteroidSlab(ctx, s, { body, lip }) {
+  vertical(ctx, s, body, Math.max(16, s.h * 0.4))
+  const seed = Math.round(s.x) * 7919 + Math.round(s.y)
+  for (const [shade, color] of [[0, COLOR.strata], [1, COLOR.seamLit]]) {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    for (let i = shade; i < Math.min(500, (s.w * s.h) / 220); i += 2) ctx.rect(s.x + hash(seed, i, 1) * s.w, s.y + hash(seed, i, 2) * s.h, 1.5, 1.5)
+    ctx.fill()
+  }
   ctx.fillStyle = lip
   ctx.fillRect(s.x, s.y, s.w, 2)
 }

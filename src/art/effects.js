@@ -1,7 +1,14 @@
 import { COLOR, TEAM } from './theme.js'
 import { TAU, additive, glowDot, rand } from './brush.js'
+import { NOZZLE_Y } from './sprites.js'
+import { toWorld } from '../sim/rocket.js'
+import { rotate } from '../sim/geometry.js'
 
-// Explosions: smoke under, flash + sparks on top. Render-only, so Math.random is fine.
+const EXHAUST_RATE = 70 // particles per second per engine
+const ADDITIVE = new Set(['ember', 'flash', 'spark'])
+
+// Explosions: smoke under, flash + sparks on top. Engine exhaust: embers and puffs blown out of the nozzles.
+// Render-only, so Math.random is fine.
 export function createEffects() {
   let particles = []
 
@@ -10,12 +17,21 @@ export function createEffects() {
       particles.push(...burst(at))
     },
 
+    exhaust(r, engineOffset, dt) {
+      for (const [side, on] of [[-1, r.input.left], [1, r.input.right]]) {
+        if (!on) continue
+        for (let n = Math.floor(EXHAUST_RATE * dt + Math.random()); n > 0; n--) particles.push(exhaustParticle(r, side * engineOffset))
+      }
+    },
+
     draw(ctx, dt) {
       particles = particles.filter((p) => (p.life -= dt) > 0)
-      for (const p of particles) {
-        move(p, dt)
-        DRAW[p.kind](ctx, p, p.life / p.max) // t: 1 → 0
+      for (const p of particles) move(p, dt)
+      const drawn = (glow) => {
+        for (const p of particles) if (ADDITIVE.has(p.kind) === glow) DRAW[p.kind](ctx, p, p.life / p.max) // t: 1 → 0
       }
+      drawn(false)
+      additive(ctx, () => drawn(true))
     },
   }
 }
@@ -37,37 +53,60 @@ function burst({ x, y, team }) {
   return [...smoke, flash, ...sparks]
 }
 
+// Out of the nozzle at x (rocket-local), along the rocket's down axis, on top of the rocket's own speed.
+function exhaustParticle(r, x) {
+  const [px, py] = toWorld(r, [x, NOZZLE_Y])
+  const [vx, vy] = rotate(rand(-35, 35), rand(150, 260), r.angle)
+  const ember = Math.random() < 0.45
+  const life = ember ? rand(0.15, 0.35) : rand(0.45, 0.85)
+  return {
+    x: px,
+    y: py,
+    vx: r.vx + vx,
+    vy: r.vy + vy,
+    life,
+    max: life,
+    kind: ember ? 'ember' : 'puff',
+    gravity: 0,
+    size: ember ? rand(1.2, 2.4) : rand(2.5, 4.5),
+  }
+}
+
 function move(p, dt) {
   p.vy += p.gravity * dt
-  if (p.kind === 'smoke') p.vx *= 1 - 1.5 * dt
+  if (p.kind === 'smoke' || p.kind === 'puff') {
+    p.vx *= 1 - 2.5 * dt
+    p.vy *= 1 - 2.5 * dt
+  }
   p.x += p.vx * dt
   p.y += p.vy * dt
 }
 
 const DRAW = {
-  smoke(ctx, p, t) {
-    ctx.globalAlpha = t * 0.45
-    ctx.fillStyle = COLOR.smoke
+  smoke: (ctx, p, t) => disc(ctx, p, p.size * (2 - t), { color: COLOR.smoke, alpha: t * 0.45 }),
+  puff: (ctx, p, t) => disc(ctx, p, p.size * (3.2 - 2.2 * t), { color: COLOR.exhaust, alpha: t * 0.4 }),
+  ember: (ctx, p, t) => disc(ctx, p, p.size * (0.5 + t * 0.5), { color: COLOR.flame[t > 0.5 ? 0 : 1], alpha: t }),
+  flash: (ctx, p, t) => glowDot(ctx, p.x, p.y, { radius: p.size * (1.6 - t), color: COLOR.spark[0], alpha: t }),
+  spark(ctx, p, t) {
+    ctx.globalAlpha = t
+    ctx.strokeStyle = p.color
+    ctx.lineWidth = p.size
+    ctx.lineCap = 'round'
     ctx.beginPath()
-    ctx.arc(p.x, p.y, p.size * (2 - t), 0, TAU)
-    ctx.fill()
+    ctx.moveTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03)
+    ctx.lineTo(p.x, p.y)
+    ctx.stroke()
     ctx.globalAlpha = 1
   },
-  flash(ctx, p, t) {
-    additive(ctx, () => glowDot(ctx, p.x, p.y, { radius: p.size * (1.6 - t), color: COLOR.spark[0], alpha: t }))
-  },
-  spark(ctx, p, t) {
-    additive(ctx, () => {
-      ctx.globalAlpha = t
-      ctx.strokeStyle = p.color
-      ctx.lineWidth = p.size
-      ctx.lineCap = 'round'
-      ctx.beginPath()
-      ctx.moveTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03)
-      ctx.lineTo(p.x, p.y)
-      ctx.stroke()
-    })
-  },
+}
+
+function disc(ctx, { x, y }, radius, { color, alpha }) {
+  ctx.globalAlpha = alpha
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, TAU)
+  ctx.fill()
+  ctx.globalAlpha = 1
 }
 
 // speed, life: [min, max]

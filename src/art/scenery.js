@@ -1,8 +1,10 @@
 import { FLAG_HEIGHT } from '../sim/game.js'
 import { BIOMES, COLOR, RAIN, SKIES, TEAM } from './theme.js'
-import { TAU, additive, chrome, glowDot, rand } from './brush.js'
+import { TAU, additive, chrome, glowDot, parallax, rand } from './brush.js'
 import { drawSea, layoutSea } from './sea.js'
 import { drawHills, layoutHills } from './hills.js'
+import { drawDust, layoutDust } from './dust.js'
+import { drawPlanet } from './planets.js'
 
 // Things that stay put: sky, weather, distant hills, sea, landing pads, flags.
 // Solids are in solids.js, props in props/, hills in hills.js.
@@ -10,11 +12,13 @@ import { drawHills, layoutHills } from './hills.js'
 // Parallax k: 0 = pinned to the screen, 1 = moves with the world.
 const SKY_LAYER = 0.1 // stars, suns
 const CLOUD_LAYER = 0.15 // clouds, passing ships
+const STAR_DEPTH = 0.6 // share of the sky with stars, fading out toward the bottom
+const NEBULA = { margin: 600, scale: 1 / 8 } // nebula glows are soft, so they're baked small once
 
-// weather: { time: key of SKIES, rain: boolean }. Rain odds depend on the biome.
+// weather: { time: key of SKIES, rain: boolean }. Times and rain odds depend on the biome.
 export function randomWeather(biome) {
   if (!BIOMES[biome]) throw new Error(`randomWeather: unknown biome "${biome}", expected one of ${Object.keys(BIOMES)}`)
-  const times = Object.keys(SKIES)
+  const times = BIOMES[biome].skies
   return { time: times[Math.floor(Math.random() * times.length)], rain: Math.random() < BIOMES[biome].rain }
 }
 
@@ -27,6 +31,7 @@ export function createScenery(map, weather) {
   const seas = map.solids.filter((s) => s.kind === 'water').map((rect) => layoutSea(rect, map.solids, weather.rain))
   const mirror = document.createElement('canvas')
   const lightning = { next: rand(3, 8), at: -Infinity }
+  const dust = layoutDust(map, sky)
 
   return {
     weather,
@@ -35,6 +40,10 @@ export function createScenery(map, weather) {
     // cx, cy: camera center in world units.
     backdrop(ctx, cx, cy, clock) {
       drawBackdrop(ctx, scene, { x: cx - map.width / 2, y: cy - map.height / 2 }, clock)
+    },
+
+    foreground(ctx, cx, cy, clock) {
+      drawDust(ctx, dust, { x: cx - map.width / 2, y: cy - map.height / 2 }, clock)
     },
 
     water(ctx, cx, clock) {
@@ -53,13 +62,15 @@ export function createScenery(map, weather) {
 
 function layoutScene(map, sky, rain) {
   const { width, height } = map
+  const starDepth = sky.starDepth ?? STAR_DEPTH
   return {
     map,
     sky,
     rain,
-    stars: Array.from({ length: 180 }, () => ({
+    starDepth,
+    stars: Array.from({ length: Math.round(300 * starDepth) }, () => ({
       x: rand(-500, width + 500),
-      y: rand(0, height * 0.6),
+      y: rand(0, height * starDepth),
       size: rand(0.6, 2),
       phase: rand(0, TAU),
     })),
@@ -75,6 +86,7 @@ function layoutScene(map, sky, rain) {
       offset: rand(0, width),
       phase: rand(0, TAU),
     })),
+    nebula: sky.nebula && bakeNebula(map, sky.nebula),
     hills: layoutHills(map, sky, map.biome),
     drops: rain
       ? Array.from({ length: 260 }, (_, i) => ({ x: rand(0, 1), y: rand(0, 1), speed: rand(0.9, 1.4), near: i % 3 === 0 }))
@@ -91,8 +103,10 @@ function drawBackdrop(ctx, scene, offset, clock) {
   ctx.fillRect(0, 0, map.width, map.height)
 
   parallax(ctx, SKY_LAYER, offset, () => {
+    drawNebula(ctx, scene)
     if (sky.stars && !rain) drawStars(ctx, scene, clock)
     drawSuns(ctx, sky, map)
+    for (const p of sky.planets ?? []) drawPlanet(ctx, p, sky, map)
   })
   if (rain) {
     ctx.fillStyle = sky.overcast
@@ -105,17 +119,10 @@ function drawBackdrop(ctx, scene, offset, clock) {
   for (const m of scene.hills) parallax(ctx, m.k, offset, () => drawHills(ctx, m, scene, clock))
 }
 
-function parallax(ctx, k, offset, draw) {
-  ctx.save()
-  ctx.translate(offset.x * (1 - k), offset.y * (1 - k))
-  draw()
-  ctx.restore()
-}
-
-function drawStars(ctx, { stars, sky, map }, clock) {
+function drawStars(ctx, { stars, sky, map, starDepth }, clock) {
   ctx.fillStyle = COLOR.star
   for (const s of stars) {
-    ctx.globalAlpha = sky.stars * (1 - s.y / (map.height * 0.6)) * (0.65 + 0.35 * Math.sin(clock * 2 + s.phase))
+    ctx.globalAlpha = sky.stars * (1 - s.y / (map.height * starDepth * 1.1)) * (0.65 + 0.35 * Math.sin(clock * 2 + s.phase))
     ctx.fillRect(s.x, s.y, s.size, s.size)
   }
   ctx.globalAlpha = 1
@@ -133,7 +140,30 @@ function drawSuns(ctx, sky, { width, height }) {
   }
 }
 
+function bakeNebula({ width, height }, colors) {
+  const { margin, scale } = NEBULA
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.ceil((width + margin * 2) * scale)
+  canvas.height = Math.ceil((height + margin * 2) * scale)
+  const ctx = canvas.getContext('2d')
+  ctx.scale(scale, scale)
+  ctx.translate(margin, margin)
+  additive(ctx, () => {
+    for (const color of colors) {
+      for (let i = 0; i < 5; i++) glowDot(ctx, rand(0, width), rand(0.05, 0.7) * height, { radius: rand(200, 520), color, alpha: 0.35 })
+    }
+  })
+  return canvas
+}
+
+function drawNebula(ctx, { nebula, map }) {
+  if (!nebula) return
+  const { margin } = NEBULA
+  additive(ctx, () => ctx.drawImage(nebula, -margin, -margin, map.width + margin * 2, map.height + margin * 2))
+}
+
 function drawClouds(ctx, { clouds, sky, rain }) {
+  if (!rain && !sky.cloud) return
   const [top, bottom] = rain ? sky.rainCloud : sky.cloud
   for (const c of clouds) {
     const cg = ctx.createLinearGradient(0, c.y - c.ry, 0, c.y + c.ry)

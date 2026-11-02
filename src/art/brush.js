@@ -40,6 +40,43 @@ export function additive(ctx, draw) {
   ctx.restore()
 }
 
+export function clamp(v, lo, hi) {
+  return Math.min(Math.max(v, lo), hi)
+}
+
+// Stable 0..1 for integer inputs, for art that must look the same every frame.
+export function hash(a, b, c) {
+  let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b, 0xc2b2ae35) ^ Math.imul(c, 0x27d4eb2f)
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d)
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39)
+  return ((h ^ (h >>> 15)) >>> 0) / 4294967296
+}
+
+// Draws turned by angle (clockwise) about the rect's center.
+export function turnedAbout(ctx, { x, y, w, h }, angle, draw) {
+  ctx.save()
+  ctx.translate(x + w / 2, y + h / 2)
+  ctx.rotate(angle)
+  ctx.translate(-x - w / 2, -y - h / 2)
+  draw()
+  ctx.restore()
+}
+
+// Parallax layer: k = 0 is pinned to the screen, 1 moves with the world, more passes in front of it.
+// offset: camera center minus map center, world units.
+export function parallax(ctx, k, offset, draw) {
+  ctx.save()
+  ctx.translate(offset.x * (1 - k), offset.y * (1 - k))
+  draw()
+  ctx.restore()
+}
+
+// Assumes the current transform has no rotation.
+export function onScreen(ctx, { x, y, w, h }) {
+  const { a, d, e, f } = ctx.getTransform()
+  return a * (x + w) + e > 0 && a * x + e < ctx.canvas.width && d * (y + h) + f > 0 && d * y + f < ctx.canvas.height
+}
+
 // Art is render-only, so Math.random is fine.
 export function rand(lo, hi) {
   return lo + Math.random() * (hi - lo)

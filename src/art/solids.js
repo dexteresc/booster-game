@@ -1,6 +1,7 @@
 import { COLOR } from './theme.js'
-import { TAU } from './brush.js'
-import { GROUND_ART, vertical } from './ground.js'
+import { TAU, turnedAbout } from './brush.js'
+import { GROUND_ART, SHAPED_GROUND_ART, vertical } from './ground.js'
+import { outlineOf } from '../sim/outline.js'
 
 // Solids: the rects rockets collide with, drawn by kind. sky: palette from SKIES,
 // so everything is lit to match the time of day. Rock looks like the biome's ground
@@ -35,7 +36,49 @@ export function drawSolid(ctx, s, sky, biome) {
   if (s.kind === 'water') return
   const draw = SOLID_ART[s.kind ?? 'rock']
   if (!draw) throw new Error(`drawSolid: unknown solid kind "${s.kind}"`)
-  draw(ctx, s, sky, biome)
+  const shapedRock = shapedRockArt(s, biome)
+  if (shapedRock) shapedRock(ctx, s, sky.ground[biome])
+  else if (s.angle) turnedAbout(ctx, s, s.angle, () => drawSolid(ctx, { ...s, angle: undefined }, sky, biome))
+  else if (s.shape) drawShaped(ctx, s, () => draw(ctx, s, sky, biome))
+  else draw(ctx, s, sky, biome)
+}
+
+function shapedRockArt(s, biome) {
+  if ((s.kind ?? 'rock') !== 'rock' || (!s.shape && s.angle === undefined)) return null
+  return SHAPED_GROUND_ART[biome]
+}
+
+// Any material in a round or lumpy outline: its art clipped to it and shaded as a ball lit from the upper
+// left; round ones get a lit rim.
+function drawShaped(ctx, s, draw) {
+  const rx = s.w / 2
+  const ry = s.h / 2
+  const cx = s.x + rx
+  const cy = s.y + ry
+  ctx.save()
+  ctx.clip(outlinePath(s))
+  draw()
+  const light = ctx.createRadialGradient(cx - rx * 0.4, cy - ry * 0.45, 0, cx - rx * 0.25, cy - ry * 0.3, Math.max(rx, ry) * 1.5)
+  light.addColorStop(0, 'rgba(255,248,235,0.22)')
+  light.addColorStop(0.35, 'rgba(255,248,235,0)')
+  light.addColorStop(0.7, 'rgba(0,0,0,0.25)')
+  light.addColorStop(1, 'rgba(0,0,0,0.7)')
+  ctx.fillStyle = light
+  ctx.fillRect(s.x, s.y, s.w, s.h)
+  ctx.restore()
+  if (s.shape !== 'round') return
+  ctx.strokeStyle = COLOR.lip
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, rx - 0.75, ry - 0.75, 0, 1.05 * Math.PI, 1.6 * Math.PI)
+  ctx.stroke()
+}
+
+function outlinePath(s) {
+  const path = new Path2D()
+  for (const [x, y] of outlineOf(s.shape, s.w, s.h).points) path.lineTo(s.x + x, s.y + y)
+  path.closePath()
+  return path
 }
 
 export function drawRock(ctx, s, sky, biome) {

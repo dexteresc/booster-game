@@ -10,11 +10,13 @@ export const TEAM = {
 }
 
 // A map's biome. blocks: what the editor offers, in order. hills: backdrop shape (art/hills.js).
-// tint: multiplied over the hills. rain: chance of a rainy game.
+// tint: multiplied over the hills. rain: chance of a rainy game. skies: the times of day (SKIES) it gets.
+const EARTH_SKIES = ['dusk', 'day', 'night']
 export const BIOMES = {
-  desert: { label: 'Desert', blocks: ['rock', 'water', 'stone', 'concrete', 'metal', 'hazard', 'panel', 'glass'], hills: 'butte', tint: null, rain: 0.3 },
-  jungle: { label: 'Jungle', blocks: ['rock', 'water', 'stone', 'planks', 'concrete', 'metal', 'hazard', 'glass'], hills: 'canopy', tint: '#8fcf8a', rain: 0.6 },
-  nautic: { label: 'Nautic', blocks: ['rock', 'water', 'hull', 'planks', 'metal', 'hazard', 'glass'], hills: 'island', tint: '#9ac0dc', rain: 0.45 },
+  desert: { label: 'Desert', blocks: ['rock', 'water', 'stone', 'concrete', 'metal', 'hazard', 'panel', 'glass'], hills: 'butte', tint: null, rain: 0.3, skies: EARTH_SKIES },
+  jungle: { label: 'Jungle', blocks: ['rock', 'water', 'stone', 'planks', 'concrete', 'metal', 'hazard', 'glass'], hills: 'canopy', tint: '#8fcf8a', rain: 0.6, skies: EARTH_SKIES },
+  nautic: { label: 'Nautic', blocks: ['rock', 'water', 'hull', 'planks', 'metal', 'hazard', 'glass'], hills: 'island', tint: '#9ac0dc', rain: 0.45, skies: EARTH_SKIES },
+  belt: { label: 'Asteroid belt', blocks: ['rock', 'metal', 'panel', 'hazard', 'glass', 'concrete'], hills: 'belt', tint: null, rain: 0, skies: ['space'] },
 }
 
 export const COLOR = {
@@ -60,6 +62,7 @@ export const COLOR = {
 
   spark: ['#fff1c2', '#ffb347', '#ff6a1f'],
   smoke: '#2e2422',
+  exhaust: '#c8c2d4', // engine puffs: pale, so they show against night and space
 
   ally: '#2f7bff', // name badges: your team
   enemy: '#e0312b', // name badges: the other team
@@ -70,8 +73,10 @@ export const COLOR = {
 
 // Time of day. Each game picks one at random, with or without rain (odds per biome).
 // suns: x, y as a share of map size; glow: halo strength.
+// bloom: how strongly bright things glow; low by day, when the whole sky is bright.
 export const SKIES = {
   dusk: {
+    bloom: 0.45,
     sky: [[0, '#05061a'], [0.45, '#1e1838'], [0.72, '#6a3346'], [0.88, '#d46a3c'], [1, '#ffb36b']],
     stars: 1,
     suns: [{ x: 0.62, y: 0.7, r: 30 }, { x: 0.665, y: 0.735, r: 18 }],
@@ -90,6 +95,7 @@ export const SKIES = {
       desert: { body: ['#c98a55', '#9a5a36', '#6e3c26'], lip: '#e8b07a' },
       jungle: { body: ['#8c8a5e', '#5a5a40', '#38382a'], lip: '#b8b85a' },
       nautic: { body: ['#8a7e84', '#564e58', '#332e36'], lip: '#f0c8b0' },
+      belt: { body: ['#a08478', '#6a5450', '#3e3032'], lip: '#e6b896' },
     },
     wood: ['#d49060', '#9a5c34', '#5e3620'], // planks: light, mid, dark
     stone: ['#b59a84', '#7f6a5e', '#4d4038'], // temple blocks: lit top → base
@@ -101,6 +107,7 @@ export const SKIES = {
     rainCloud: ['rgba(50,40,60,0.9)', 'rgba(120,80,80,0.85)'],
   },
   day: {
+    bloom: 0.2,
     sky: [[0, '#2f6db5'], [0.5, '#7fb3e0'], [0.85, '#e9d9bd'], [1, '#f6e4c4']],
     stars: 0,
     suns: [{ x: 0.7, y: 0.18, r: 28 }, { x: 0.76, y: 0.22, r: 16 }],
@@ -118,6 +125,7 @@ export const SKIES = {
       desert: { body: ['#e2a66c', '#b8743f', '#8a5030'], lip: '#f6cf98' },
       jungle: { body: ['#8ea47a', '#5f7050', '#3d4a36'], lip: '#a8d76a' },
       nautic: { body: ['#7d8d94', '#4e5c63', '#303a40'], lip: '#d6eef2' },
+      belt: { body: ['#b0a294', '#7e7066', '#4e443e'], lip: '#ece0d0' },
     },
     wood: ['#d8a266', '#a86f3c', '#6e4524'],
     stone: ['#b9b3a0', '#8f8a78', '#5f5b4e'],
@@ -129,6 +137,7 @@ export const SKIES = {
     rainCloud: ['rgba(150,155,165,0.9)', 'rgba(110,115,128,0.9)'],
   },
   night: {
+    bloom: 0.6,
     sky: [[0, '#010208'], [0.55, '#070b24'], [0.9, '#18204a'], [1, '#26306a']],
     stars: 1,
     suns: [{ x: 0.3, y: 0.25, r: 26 }], // moon
@@ -146,6 +155,7 @@ export const SKIES = {
       desert: { body: ['#6a6488', '#47405e', '#2a2540'], lip: '#a6a8d8' },
       jungle: { body: ['#4c5a62', '#333f44', '#1e262a'], lip: '#5f8a6a' },
       nautic: { body: ['#4a5668', '#2f3846', '#1a2029'], lip: '#9fb8d0' },
+      belt: { body: ['#626078', '#424054', '#262534'], lip: '#a8a8cc' },
     },
     wood: ['#6a5a74', '#473a50', '#2a2232'],
     stone: ['#5b6178', '#3e4357', '#242838'],
@@ -156,6 +166,33 @@ export const SKIES = {
     overcast: 'rgba(12,14,24,0.55)',
     rainCloud: ['rgba(20,22,34,0.95)', 'rgba(40,44,62,0.9)'],
   },
+}
+
+// Deep space: no air, so no clouds or haze. planets: bodies in the sky; nebula: soft glows behind the stars.
+SKIES.space = {
+  ...SKIES.night,
+  sky: [[0, '#020208'], [0.6, '#06061a'], [1, '#0e0a22']],
+  starDepth: 1, // stars all the way down, there's no horizon
+  suns: [{ x: 0.08, y: 0.1, r: 7 }], // upper left, where all the art is lit from
+  sun: '#fffbe8',
+  sunGlow: '#ffd890',
+  glow: 0.55,
+  planets: [
+    { kind: 'giant', x: 0.3, y: 0.32, r: 150, bands: ['#e8c9a0', '#c28a5c', '#f2dcb8', '#a8643e', '#e0b98c', '#8a5236'], spot: '#c25a3a' },
+    { kind: 'moon', x: 0.52, y: 0.16, r: 16, color: '#c8c2b8' },
+  ],
+  nebula: ['rgba(120,60,190,0.5)', 'rgba(40,110,200,0.45)', 'rgba(210,70,130,0.35)'],
+  cloud: null,
+  mesas: ['#2a2733', '#3a3442', '#4a4250', '#5c525c'], // distant rocks, far → near
+  haze: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
+  windows: 0,
+  dust: '#cfc6ff', // foreground motes
+  dustRock: ['#2a2430', '#1e1a24', '#141018'], // out-of-focus rocks in front of the action
+  ground: { ...SKIES.night.ground, belt: { body: ['#b29a8a', '#76625a', '#3c302e'], lip: '#ffd6b0' } },
+  metal: GUNMETAL,
+  panel: ['#fff8e6', '#efe4c8', '#c9bb9a'],
+  concrete: ['#c8c6c2', '#96948f', '#64625e'],
+  glass: ['#8fe0da', '#2f8f96'],
 }
 
 export const RAIN = {

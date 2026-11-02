@@ -1,6 +1,6 @@
 import { parseMap } from '../maps/parse.js'
 import { BIOMES } from '../art/theme.js'
-import { createEditor, flipSelected, isDirty, isRect, mirrorLeftHalf, newMap, remember, removeSelected, undo } from './model.js'
+import { createEditor, flipSelected, isDirty, isRect, mirrorLeftHalf, newMap, remember, removeSelected, shapeSelected, undo } from './model.js'
 import { attachPointer } from './pointer.js'
 import { drawEditor } from './draw.js'
 import { TOOL_KEYS, buildPalette } from './palette.js'
@@ -19,9 +19,11 @@ const ui = {
   biome: $('biome'),
   width: $('width'),
   height: $('height'),
+  gravity: $('gravity'),
   palette: $('palette'),
   tools: () => [...document.querySelectorAll('[data-tool]')],
   flip: $('flip'),
+  shape: $('shape'),
   remove: $('delete'),
   undo: $('undo'),
   mirror: $('mirror'),
@@ -91,14 +93,16 @@ function bindPanel() {
   }
   ui.mode.onchange = () => edit(() => setMode(ui.mode.value))
   ui.biome.onchange = () => edit(() => setBiome(ui.biome.value))
-  ui.width.onchange = () => resizeMap('width', ui.width)
-  ui.height.onchange = () => resizeMap('height', ui.height)
+  ui.width.onchange = () => setMapNumber('width', ui.width)
+  ui.height.onchange = () => setMapNumber('height', ui.height)
+  ui.gravity.onchange = () => setMapNumber('gravity', ui.gravity, 1)
   ui.palette.onclick = (e) => {
     const button = e.target.closest('[data-tool]')
     if (button) setTool(button.dataset.tool)
   }
   ui.tools().find((b) => b.dataset.tool === 'select').onclick = () => setTool('select')
   ui.flip.onclick = () => edit(() => flipSelected(editor))
+  ui.shape.onclick = () => edit(() => shapeSelected(editor))
   ui.remove.onclick = () => edit(() => removeSelected(editor))
   ui.undo.onclick = () => edit(() => undo(editor))
   ui.mirror.onclick = () => edit(() => mirrorLeftHalf(editor))
@@ -125,6 +129,7 @@ function onShortcut(e) {
 function onPlainKey(e) {
   if (TOOL_KEYS[e.code]) setTool(TOOL_KEYS[e.code])
   if (e.code === 'KeyF') edit(() => flipSelected(editor))
+  if (e.code === 'KeyO') edit(() => shapeSelected(editor))
   if (e.code === 'Delete' || e.code === 'Backspace') edit(() => removeSelected(editor))
   if (e.code === 'Escape') edit(() => (editor.selected = null))
 }
@@ -150,15 +155,17 @@ function setBiome(biome) {
   editor.map.biome = biome
 }
 
-function resizeMap(key, input) {
+// A value equal to `fallback` is the default, so it's left out of the file.
+function setMapNumber(key, input, fallback) {
   const value = Number(input.value)
   if (!(value > 0)) {
     showStatus(`Map ${key} must be a positive number, got "${input.value}"`, true)
-    input.value = editor.map[key]
+    input.value = editor.map[key] ?? fallback
     return
   }
   remember(editor)
-  editor.map[key] = value
+  if (value === fallback) delete editor.map[key]
+  else editor.map[key] = value
   refresh()
 }
 
@@ -196,16 +203,22 @@ function refresh() {
   const { map, selected, tool, name, history: undoable } = editor
   if (document.activeElement !== ui.width) ui.width.value = map.width
   if (document.activeElement !== ui.height) ui.height.value = map.height
+  if (document.activeElement !== ui.gravity) ui.gravity.value = map.gravity ?? 1
   ui.mode.value = map.mode
   refreshTools(map.biome, tool)
-  ui.flip.disabled = selected?.kind !== 'prop'
-  ui.remove.disabled = !selected || selected.kind === 'pad'
+  refreshSelectionButtons(selected)
   ui.undo.disabled = !undoable.length
   ui.mirror.disabled = map.mode !== 'pvp'
   ui.play.hidden = !name
   if (name) ui.play.href = `./?map=${encodeURIComponent(name)}`
   document.title = `${isDirty(editor) ? '• ' : ''}${name ?? 'new map'} · Booster map editor`
   refreshInfo()
+}
+
+function refreshSelectionButtons(selected) {
+  ui.flip.disabled = selected?.kind !== 'prop'
+  ui.shape.disabled = selected?.kind !== 'solid'
+  ui.remove.disabled = !selected || selected.kind === 'pad'
 }
 
 // Tool tiles follow the biome; a tool the biome doesn't offer falls back to select.
@@ -229,7 +242,7 @@ function describe(item) {
   const { kind, obj } = item
   const what = obj.kind ?? (kind === 'solid' ? 'rock' : kind)
   const size = isRect(item) ? ` ${obj.w}×${obj.h}` : ''
-  return `${what}${obj.flip ? ' (flipped)' : ''} at ${obj.x}, ${obj.y}${size}`
+  return `${obj.shape ? `${obj.shape} ` : ''}${what}${obj.flip ? ' (flipped)' : ''} at ${obj.x}, ${obj.y}${size}`
 }
 
 function showStatus(text, error = false) {
