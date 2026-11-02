@@ -5,7 +5,7 @@ import type { HostHandlers, LobbyMessage, Pilot, Room, RoomClient, RoomPlayer, R
 import { config } from './config.ts'
 import { byId, find } from './dom.ts'
 import { flashLabel, relabel } from './button-label.ts'
-import { DEFAULT_MAP, maps } from './maps/index.ts'
+import { anotherMap, mapFor, maps } from './maps/index.ts'
 import { addPlayer, createGame, maxPlayersPerTeam, removePlayer, step } from './sim/game.ts'
 import { createLocalInput } from './input.ts'
 import { createRenderer } from './render.ts'
@@ -102,6 +102,7 @@ function runSim(sim: Game, elapsed: number, local: Input) {
     unsentEvents = []
   }
   if (sim.winner && sim.wonAt !== null && sim.time - sim.wonAt > RESTART_DELAY_SECONDS) {
+    if (mode && mapName) selectMap(anotherMap(mode, mapName)) // joiners follow: the roster and lobby carry the name
     if (mode === 'pvp') openLobby()
     else newGame()
   }
@@ -133,16 +134,6 @@ function sendRoster(activeRoom: Room, sim: Game) {
   if (key === rosterKey) return
   activeRoom.broadcast(roster)
   rosterKey = key
-}
-
-// The map in the URL if it's made for this mode, else the first one that is.
-function mapFor(wanted: Mode) {
-  const linked = new URLSearchParams(location.search).get('map')
-  if (linked && maps[linked]?.mode === wanted) return linked
-  if (maps[DEFAULT_MAP].mode === wanted) return DEFAULT_MAP
-  const name = Object.keys(maps).find((n) => maps[n].mode === wanted)
-  if (!name) throw new Error(`No ${wanted} map in src/maps/. Make one in the editor (mode: ${wanted})`)
-  return name
 }
 
 function selectMap(name: string) {
