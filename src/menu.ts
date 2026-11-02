@@ -1,16 +1,22 @@
 import type { Config } from './config.ts'
 import type { Mode, Team } from './maps/parse.ts'
+import type { Pilot } from './net.ts'
+import type { Stats } from './progress.ts'
 import { SKIES } from './art/theme.ts'
-import { context2d, find } from './dom.ts'
+import { cleanSkin } from './art/skins.ts'
+import { byId, context2d, find } from './dom.ts'
+import { createSkinPicker } from './skin-picker.ts'
+import { readStored, readStoredJson, writeStored } from './storage.ts'
 import { fitCanvas } from './art/brush.ts'
 import { drawFlag, drawPad } from './art/scenery.ts'
 import { drawRock } from './art/solids.ts'
 import { drawCannon } from './art/sprites.ts'
 
-// Start screen: pick a name, then PvE or PvP. Opened from an invite link it offers Join instead.
-// Mode pictures are drawn live with the game's own art.
+// Start screen: pick a name and a skin, then PvE or PvP. Opened from an invite link it offers Join instead.
+// Mode pictures and the skin preview are drawn live with the game's own art.
 
 const NAME_KEY = 'booster-name'
+const SKIN_KEY = 'booster-skin'
 const SKY = SKIES.dusk
 const PICTURE = { w: 220, h: 96 } // world units shown in a mode card
 const GROUND_Y = 76
@@ -18,15 +24,19 @@ const GROUND_Y = 76
 type MenuOptions = {
   joinCode: string // set → only Join is offered
   rules: Config['rules']
-  handlers: { onPick(mode: Mode, name: string): void; onJoin(name: string): void }
+  stats: Stats // decides which skins are unlocked
+  handlers: { onPick(mode: Mode, pilot: Pilot): void; onJoin(pilot: Pilot): void }
 }
 
-export function showMenu(panel: HTMLElement, { joinCode, rules, handlers }: MenuOptions): void {
+export function showMenu(panel: HTMLElement, { joinCode, rules, stats, handlers }: MenuOptions): void {
   const nameInput = find<HTMLInputElement>(panel, '#player-name')
-  nameInput.value = loadName()
-  const name = () => {
-    saveName(nameInput.value)
-    return nameInput.value
+  const saved = loadPilot()
+  nameInput.value = saved.name
+  const picker = createSkinPicker(byId<HTMLDialogElement>('appearance'), saved.skin, stats, (skin) => writeStored(SKIN_KEY, JSON.stringify(skin)))
+  find<HTMLElement>(panel, '.menu-appearance').onclick = picker.open
+  const pilot = (): Pilot => {
+    writeStored(NAME_KEY, nameInput.value)
+    return { name: nameInput.value, skin: picker.skin }
   }
   find<HTMLElement>(panel, '.menu-modes').hidden = Boolean(joinCode)
   find(panel, '.menu-pve-rules').textContent =
@@ -34,8 +44,8 @@ export function showMenu(panel: HTMLElement, { joinCode, rules, handlers }: Menu
   const joinButton = find<HTMLElement>(panel, '.menu-join')
   joinButton.hidden = !joinCode
   joinButton.textContent = `Join room ${joinCode}`
-  joinButton.onclick = () => handlers.onJoin(name())
-  for (const card of panel.querySelectorAll<HTMLElement>('[data-mode]')) card.onclick = () => handlers.onPick(card.dataset.mode as Mode, name())
+  joinButton.onclick = () => handlers.onJoin(pilot())
+  for (const card of panel.querySelectorAll<HTMLElement>('[data-mode]')) card.onclick = () => handlers.onPick(card.dataset.mode as Mode, pilot())
   panel.hidden = false
   animatePictures(panel)
 }
@@ -77,20 +87,7 @@ function drawBase(ctx: CanvasRenderingContext2D, x: number, team: Team, clock: n
   drawFlag(ctx, { x: x + pad.w / 2, y: pad.y }, team, clock)
 }
 
-// Remembering the name is a convenience: storage can be blocked (private mode), the game works without it.
-export function loadName(): string {
-  try {
-    return localStorage.getItem(NAME_KEY) ?? ''
-  } catch (err) {
-    console.warn('Could not read saved name', err)
-    return ''
-  }
-}
-
-function saveName(name: string) {
-  try {
-    localStorage.setItem(NAME_KEY, name)
-  } catch (err) {
-    console.warn('Could not save name', err)
-  }
+// What the player typed and picked last time; defaults when nothing is saved.
+export function loadPilot(): Pilot {
+  return { name: readStored(NAME_KEY) ?? '', skin: cleanSkin(readStoredJson(SKIN_KEY)) }
 }

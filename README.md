@@ -11,6 +11,12 @@ Two-engine rocket capture-the-flag in the browser. Pick a mode on the start scre
 Your name shows above your rocket for the others: blue for your team, red for theirs.
 Multiplayer is peer-to-peer, see [TURN.md](TURN.md).
 
+**Skins**: the start screen lets you pick your rocket's body, paint, engine flame and trail (rainbow, glitter,
+petals, ash). Most options are locked until you reach a goal: capture flags, win matches, burn engine time, go
+down often enough. Click a locked option to see its goal and how far you are. Progress and your pick are saved
+in the browser only; other players see your skin, not your progress. `?unlock` in the URL unlocks everything for
+that page load without saving, to try skins out.
+
 Live: https://nqvst.github.io/booster-game/
 
 ## Develop
@@ -27,7 +33,8 @@ npm run lint     # ESLint with eslint-rules/, then scripts/check-exports.ts
 | Path | What |
 | --- | --- |
 | `src/sim/` | Game rules. Pure, no DOM: same inputs → same state. Core types are here and in `src/maps/parse.ts` |
-| `src/art/`, `src/render.ts` | Drawing |
+| `src/art/`, `src/render.ts` | Drawing. `art/skins.ts` lists skins and what unlocks them, `art/trail.ts` draws trails |
+| `src/progress.ts`, `src/skin-picker.ts` | Skin unlock goals, counted from what the screen shows; the menu's skin picker |
 | `src/net.ts`, `src/snapshot.ts`, `src/remote-game.ts` | Multiplayer: connections, the binary snapshot format, joiner-side smoothing |
 | `src/maps/*.json` | Maps, one file each. Picked up automatically |
 | `src/editor/` | Map editor |

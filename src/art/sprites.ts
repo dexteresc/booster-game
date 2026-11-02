@@ -1,46 +1,62 @@
 import { FEET } from '../sim/rocket.ts'
 import { BARREL_LENGTH, PIVOT_HEIGHT, cannonPedestal } from '../sim/cannon.ts'
 import { COLOR, TEAM } from './theme.ts'
+import { SKINS } from './skins.ts'
 import { TAU, additive, chrome, glowDot, shaded } from './brush.ts'
-import type { TeamColors } from './theme.ts'
+import type { Palette, TeamColors } from './theme.ts'
+import type { Skin } from './skins.ts'
 import type { Cannon } from '../sim/cannon.ts'
 import type { ShownBullet, ShownRocket } from '../sim/game.ts'
 
 // Things that move. Each draws a sim object at its own world position,
 // so /art.html can show them with fake objects.
 
-// Ogive hull; roughly the hull collision points in sim/rocket.ts.
-const BODY = new Path2D('M0 -26 C5 -22 8 -14 8 -6 L8 6 Q8 9 5 9 L-5 9 Q-8 9 -8 6 L-8 -6 C-8 -14 -5 -22 0 -26 Z')
+// Hull shapes per body skin; the classic one is roughly the hull collision points in sim/rocket.ts.
+const BODIES = Object.fromEntries(
+  Object.entries(SKINS.body).map(([id, body]) => [id, { path: new Path2D(body.path), tip: body.tip }]),
+) as Record<Skin['body'], { path: Path2D; tip: number }>
 const LASER_LENGTH = 24
 export const NOZZLE_Y = 16 // engine exit, below the rocket's center
 
-type DrawnRocket = Pick<ShownRocket, 'x' | 'y' | 'team' | 'angle' | 'input'>
+type DrawnRocket = Pick<ShownRocket, 'x' | 'y' | 'team' | 'angle' | 'input' | 'skin'>
+// What the skin settles: hull from its paint (or the team's); accent stays the team's so sides stay telling.
+type Finish = { hull: Palette; accent: string; body: (typeof BODIES)[Skin['body']]; flame: readonly [string, string, string] }
 type DrawnCannon = Pick<Cannon, 'x' | 'y' | 'team' | 'aim' | 'hang'>
 
 // isMe: outline the local player's rocket so it stands out in multiplayer.
 export function drawRocket(ctx: CanvasRenderingContext2D, rocket: DrawnRocket, engineOffset: number, isMe = false) {
-  const colors = TEAM[rocket.team]
+  const finish = finishOf(rocket)
   ctx.save()
   ctx.translate(rocket.x, rocket.y)
   ctx.rotate(rocket.angle)
 
   additive(ctx, () => {
-    if (rocket.input.left) drawPlume(ctx, -engineOffset, NOZZLE_Y)
-    if (rocket.input.right) drawPlume(ctx, engineOffset, NOZZLE_Y)
+    if (rocket.input.left) drawPlume(ctx, -engineOffset, NOZZLE_Y, finish.flame)
+    if (rocket.input.right) drawPlume(ctx, engineOffset, NOZZLE_Y, finish.flame)
   })
-  drawLegs(ctx, colors.accent)
+  drawLegs(ctx, finish.accent)
 
   // Strut: its width shows the balance setting
   ctx.fillStyle = chrome(ctx, -engineOffset, engineOffset)
   ctx.fillRect(-engineOffset, 6, engineOffset * 2, 2.5)
   ctx.strokeStyle = COLOR.outline
   ctx.lineWidth = 0.8
-  for (const x of [-engineOffset, engineOffset]) drawPod(ctx, x, colors)
+  for (const x of [-engineOffset, engineOffset]) drawPod(ctx, x, finish)
 
-  drawHull(ctx, colors, isMe)
-  drawAntenna(ctx, colors.accent)
+  drawHull(ctx, finish, isMe)
+  drawAntenna(ctx, finish)
   drawPorthole(ctx)
   ctx.restore()
+}
+
+function finishOf({ team, skin }: Pick<DrawnRocket, 'team' | 'skin'>): Finish {
+  const colors: TeamColors = TEAM[team]
+  return {
+    hull: SKINS.paint[skin.paint].hull ?? colors.hull,
+    accent: colors.accent,
+    body: BODIES[skin.body],
+    flame: SKINS.flame[skin.flame].colors,
+  }
 }
 
 // Landing legs with ball feet
@@ -62,13 +78,13 @@ function drawLegs(ctx: CanvasRenderingContext2D, accent: string) {
   }
 }
 
-function drawHull(ctx: CanvasRenderingContext2D, { accent, hull }: TeamColors, isMe: boolean) {
+function drawHull(ctx: CanvasRenderingContext2D, { accent, hull, body }: Finish, isMe: boolean) {
   ctx.fillStyle = shaded(ctx, -8, 8, hull)
-  ctx.fill(BODY)
+  ctx.fill(body.path)
   ctx.save()
-  ctx.clip(BODY)
+  ctx.clip(body.path)
   ctx.fillStyle = accent
-  ctx.fillRect(-8, -27, 16, 8) // nose cap
+  ctx.fillRect(-10, body.tip - 1, 20, 8) // nose cap
   ctx.fillRect(-8, -1, 16, 4) // belly band
   ctx.fillStyle = COLOR.rivet
   for (let x = -6; x <= 6; x += 3) {
@@ -80,19 +96,19 @@ function drawHull(ctx: CanvasRenderingContext2D, { accent, hull }: TeamColors, i
   ctx.restore()
   ctx.strokeStyle = isMe ? COLOR.meOutline : COLOR.outline
   ctx.lineWidth = isMe ? 1.5 : 1
-  ctx.stroke(BODY)
+  ctx.stroke(body.path)
 }
 
-function drawAntenna(ctx: CanvasRenderingContext2D, accent: string) {
+function drawAntenna(ctx: CanvasRenderingContext2D, { accent, body }: Finish) {
   ctx.strokeStyle = chrome(ctx, -1, 1)
   ctx.lineWidth = 0.8
   ctx.beginPath()
-  ctx.moveTo(0, -26)
-  ctx.lineTo(0, -31)
+  ctx.moveTo(0, body.tip)
+  ctx.lineTo(0, body.tip - 5)
   ctx.stroke()
   ctx.fillStyle = accent
   ctx.beginPath()
-  ctx.arc(0, -31.5, 1.3, 0, TAU)
+  ctx.arc(0, body.tip - 5.5, 1.3, 0, TAU)
   ctx.fill()
 }
 
@@ -113,7 +129,7 @@ function drawPorthole(ctx: CanvasRenderingContext2D) {
 }
 
 // Bullet-nosed booster with a swept fin on its outer side.
-function drawPod(ctx: CanvasRenderingContext2D, x: number, { accent, hull }: TeamColors) {
+function drawPod(ctx: CanvasRenderingContext2D, x: number, { accent, hull }: Finish) {
   const side = Math.sign(x) // -1 left, 1 right
   ctx.fillStyle = chrome(ctx, x - 4, x + 4)
   ctx.beginPath()
@@ -146,19 +162,19 @@ function drawPod(ctx: CanvasRenderingContext2D, x: number, { accent, hull }: Tea
   ctx.fillRect(x - 4, 9.5, 8, 2.5)
 }
 
-function drawPlume(ctx: CanvasRenderingContext2D, x: number, y: number) {
+function drawPlume(ctx: CanvasRenderingContext2D, x: number, y: number, flame: Finish['flame']) {
   const len = 22 + Math.random() * 12
   const g = ctx.createLinearGradient(0, y, 0, y + len)
-  g.addColorStop(0, COLOR.flame[0])
-  g.addColorStop(0.3, COLOR.flame[1])
-  g.addColorStop(1, COLOR.flame[2])
+  g.addColorStop(0, flame[0])
+  g.addColorStop(0.3, flame[1])
+  g.addColorStop(1, flame[2])
   ctx.fillStyle = g
   ctx.beginPath()
   ctx.moveTo(x - 4.5, y)
   ctx.quadraticCurveTo(x, y + len * 2, x + 4.5, y)
   ctx.fill()
-  glowDot(ctx, x, y + 2, { radius: 10, color: COLOR.flame[1], alpha: 0.4 })
-  glowDot(ctx, x, y + 14, { radius: 70, color: COLOR.flame[1], alpha: 0.16 }) // lights up whatever is near
+  glowDot(ctx, x, y + 2, { radius: 10, color: flame[1], alpha: 0.4 })
+  glowDot(ctx, x, y + 14, { radius: 70, color: flame[1], alpha: 0.16 }) // lights up whatever is near
 }
 
 // Ray-gun turret. firing: show a muzzle flash this frame. A hanging one is the upright one mirrored about y.

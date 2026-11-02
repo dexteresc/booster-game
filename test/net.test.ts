@@ -8,9 +8,11 @@ import { parseMap } from '../src/maps/parse.ts'
 import { createGame, step } from '../src/sim/game.ts'
 import { decodeSnapshot, encodeSnapshot } from '../src/snapshot.ts'
 import { blend, createRemoteGame } from '../src/remote-game.ts'
+import { DEFAULT_SKIN } from '../src/art/skins.ts'
 
 const map = parseMap(JSON.parse(readFileSync(new URL('../src/maps/duel.json', import.meta.url), 'utf8')), 'duel')
-const players: RoomPlayer[] = [{ id: 'host', team: 'blue', name: 'A' }, { id: 'b', team: 'red', name: 'B' }]
+const fancy = { body: 'needle', paint: 'gold', flame: 'azure', trail: 'rainbow' } as const
+const players: RoomPlayer[] = [{ id: 'host', team: 'blue', name: 'A', skin: DEFAULT_SKIN }, { id: 'b', team: 'red', name: 'B', skin: fancy }]
 const ids = players.map((p) => p.id)
 const close = (a: number, b: number, what: string) => assert(Math.abs(a - b) < 1e-3, `${what}: ${a} ≠ ${b}`)
 
@@ -58,5 +60,6 @@ remote.snapshot(encodeSnapshot({ ...game, time: 10 }, events), 50)
 assert.deepEqual(remote.show(50), [], 'events wait until the shown moment reaches them')
 assert.equal(remote.show(50.2).length, events.length, 'events fire once due')
 assert.deepEqual(remote.show(50.3), [], 'events fire only once')
+assert.deepEqual(remote.game?.rockets[1].skin, fancy, 'a joiner draws skins from the roster')
 
 console.log('net ok')

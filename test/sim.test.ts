@@ -5,6 +5,7 @@ import type { Input } from '../src/sim/rocket.ts'
 import { config as baseConfig } from '../src/config.ts'
 import { addPlayer, createGame, flagHome, maxPlayersPerTeam, removePlayer, step } from '../src/sim/game.ts'
 import { bottomAt, solidAt, topAt } from '../src/sim/geometry.ts'
+import { DEFAULT_SKIN } from '../src/art/skins.ts'
 
 const flat: GameMap = {
   mode: 'pve',
@@ -24,7 +25,7 @@ type Setup = ReturnType<typeof setup>
 function setup(map = flat, tweak: (config: Config) => void = () => {}, mode: Mode = 'pve') {
   const config = structuredClone(baseConfig)
   tweak(config)
-  const game = createGame(map, [{ id: 'p1', team: 'blue' }], mode)
+  const game = createGame(map, [{ id: 'p1', team: 'blue', skin: DEFAULT_SKIN }], mode)
   return { config, game, r: game.rockets[0] }
 }
 function run({ game, config }: Setup, seconds: number, input: Input = NONE) {
@@ -244,7 +245,7 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
   const pve = setup()
   assert.equal(pve.game.teams.blue.flag, false, 'PvE: no player flag')
   const pvp = setup(flat, () => {}, 'pvp')
-  addPlayer(pvp.game, { id: 'p2', team: 'red' })
+  addPlayer(pvp.game, { id: 'p2', team: 'red', skin: DEFAULT_SKIN })
   const [blue, red] = pvp.game.rockets
   const blueFlag = flagHome(flat.bases.blue)
   Object.assign(red, { x: blueFlag.x, y: blueFlag.y - 20 })
@@ -259,12 +260,14 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
 // Players join and leave mid-game; slots are reused, full teams refuse.
 {
   const t = setup()
-  addPlayer(t.game, { id: 'p2', team: 'blue' })
+  addPlayer(t.game, { id: 'p2', team: 'blue', skin: DEFAULT_SKIN })
   removePlayer(t.game, 'p1')
-  addPlayer(t.game, { id: 'p3', team: 'blue' })
+  addPlayer(t.game, { id: 'p3', team: 'blue', skin: DEFAULT_SKIN })
   assert.deepEqual(t.game.rockets.map((r) => [r.id, r.slot]), [['p2', 1], ['p3', 0]], 'slot reuse')
-  while (t.game.rockets.length < maxPlayersPerTeam(t.game, 'blue')) addPlayer(t.game, { id: `x${t.game.rockets.length}`, team: 'blue' })
-  assert.throws(() => addPlayer(t.game, { id: 'late', team: 'blue' }), /full/)
+  while (t.game.rockets.length < maxPlayersPerTeam(t.game, 'blue')) {
+    addPlayer(t.game, { id: `x${t.game.rockets.length}`, team: 'blue', skin: DEFAULT_SKIN })
+  }
+  assert.throws(() => addPlayer(t.game, { id: 'late', team: 'blue', skin: DEFAULT_SKIN }), /full/)
 }
 
 console.log('sim ok')

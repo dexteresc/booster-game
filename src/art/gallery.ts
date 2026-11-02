@@ -6,10 +6,13 @@ import { drawRock, drawSolid } from './solids.ts'
 import { drawProp } from './props/index.ts'
 import { drawCannon, drawLaser, drawRocket } from './sprites.ts'
 import { createEffects } from './effects.ts'
+import { createTrails } from './trail.ts'
+import { DEFAULT_SKIN } from './skins.ts'
 import { fitCanvas } from './brush.ts'
 import { context2d, find } from '../dom.ts'
 import { teamEntries } from '../sim/game.ts'
 import type { Explosion } from './effects.ts'
+import type { Skin } from './skins.ts'
 import type { Time } from './theme.ts'
 import type { Biome, Team } from '../maps/parse.ts'
 
@@ -18,24 +21,31 @@ import type { Biome, Team } from '../maps/parse.ts'
 // New sprite → add a cell here. Keys: T cycles time of day, R toggles rain, B cycles biome.
 
 const CELL = 100 // world units
+
+type Shed = (rocket: Parameters<ReturnType<typeof createTrails>['shed']>[0]) => void
 const ZOOM = 3
 
 type Cell = [
   label: string,
   draw: (
     ctx: CanvasRenderingContext2D,
-    frame: { x: number; y: number; t: number; boom: (e: Explosion) => void },
+    frame: { x: number; y: number; t: number; boom: (e: Explosion) => void; shed: Shed },
   ) => void,
 ]
 
-const rocket = (x: number, y: number, team: Team, { left = false, right = false, angle = 0 } = {}) => ({
-  x,
-  y,
-  team,
-  angle,
-  input: { left, right },
-})
+type Pose = { left?: boolean; right?: boolean; angle?: number; skin?: Skin }
+const rocket = (x: number, y: number, team: Team, pose: Pose = {}) => {
+  const { left = false, right = false, angle = 0, skin = DEFAULT_SKIN } = pose
+  return { x, y, team, angle, input: { left, right }, skin }
+}
 const BOTH = { left: true, right: true }
+// One skinned rocket per trail, to see them side by side.
+const SKINNED: Skin[] = [
+  { body: 'needle', paint: 'cherry', flame: 'azure', trail: 'rainbow' },
+  { body: 'bulb', paint: 'gold', flame: 'violet', trail: 'glitter' },
+  { body: 'fin', paint: 'mint', flame: 'pink', trail: 'petals' },
+  { body: 'classic', paint: 'jet', flame: 'white', trail: 'ash' },
+]
 let canyon = maps[DEFAULT_MAP]
 
 // Each cell draws around its center x, y. t: clock, boom: throttled explosion.
@@ -44,6 +54,11 @@ const cells: Cell[] = [
   ['both engines', (ctx, { x, y }) => drawRocket(ctx, rocket(x, y - 10, 'blue', BOTH), config.rocket.engineOffset)],
   ['turning', (ctx, { x, y, t }) => drawRocket(ctx, rocket(x, y - 10, 'blue', { left: true, angle: Math.sin(t) * 0.5 }), config.rocket.engineOffset)],
   ['red team', (ctx, { x, y }) => drawRocket(ctx, rocket(x, y - 10, 'red', BOTH), config.rocket.engineOffset)],
+  ...SKINNED.map((skin): Cell => [`${skin.body} · ${skin.paint} · ${skin.trail}`, (ctx, { x, y, t, shed }) => {
+    const skinned = rocket(x, y - 25, 'blue', { ...BOTH, angle: Math.sin(t) * 0.3, skin })
+    shed(skinned)
+    drawRocket(ctx, skinned, config.rocket.engineOffset)
+  }]),
   ['cannon', (ctx, { x, y, t }) => drawCannon(ctx, { x, y: y + 25, team: 'red', aim: -1.2 + Math.sin(t) * 0.6 }, t % 1.2 < 0.08, t)],
   ['lasers', (ctx, { x, y, t }) => {
     const dx = ((t * 120) % 80) - 40
@@ -90,6 +105,7 @@ addEventListener('keydown', (e) => {
   }
 })
 const effects = createEffects()
+const trails = createTrails()
 let clock = 0
 let nextBoom = 0
 let last = performance.now()
@@ -100,7 +116,7 @@ requestAnimationFrame(function frame(now) {
   clock += dt
   const { dpr, w, h } = fitCanvas(canvas)
   drawMap(w, h)
-  drawCells(w, dpr)
+  drawCells(w, dpr, dt)
   effects.draw(ctx, dt)
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   scenery.rain(ctx, 0, 0, clock)
@@ -119,7 +135,7 @@ function drawMap(w: number, h: number) {
   scenery.water(ctx, canyon.width / 2, clock)
 }
 
-function drawCells(w: number, dpr: number) {
+function drawCells(w: number, dpr: number, dt: number) {
   const zoom = ZOOM * dpr
   const cols = Math.max(1, Math.floor(w / (CELL * zoom)))
   const boom = (e: Explosion) => {
@@ -127,13 +143,15 @@ function drawCells(w: number, dpr: number) {
     effects.explode(e)
     nextBoom = clock + 1.5
   }
+  const shed: Shed = (shedding) => trails.shed(shedding, config.rocket.engineOffset, dt)
   ctx.setTransform(zoom, 0, 0, zoom, 0, 0)
+  trails.draw(ctx, dt)
   cells.forEach(([label, draw], i) => {
     const x = (i % cols) * CELL + CELL / 2
     const y = Math.floor(i / cols) * CELL + CELL / 2
     ctx.fillStyle = 'rgba(0,0,0,0.25)'
     ctx.fillRect(x - CELL / 2 + 2, y - CELL / 2 + 2, CELL - 4, CELL - 4)
-    draw(ctx, { x, y, t: clock, boom })
+    draw(ctx, { x, y, t: clock, boom, shed })
     ctx.fillStyle = COLOR.textDim
     ctx.font = `600 5px ${FONT}`
     ctx.textAlign = 'center'

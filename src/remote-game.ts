@@ -33,7 +33,7 @@ export function createRemoteGame() {
         timeline = createTimeline()
       }
       const old = new Map(game.rockets.map((r) => [r.id, r]))
-      game.rockets = players.map(({ id, name, team }) => ({ ...(old.get(id) ?? hiddenRocket(id)), name, team }))
+      game.rockets = players.map(({ id, ...pilot }) => ({ ...(old.get(id) ?? hiddenRocket(id)), ...pilot }))
       ids = players.map((p) => p.id)
     },
     snapshot(buffer: ArrayBuffer, now: number) {
@@ -50,7 +50,7 @@ export function createRemoteGame() {
   }
 }
 
-function hiddenRocket(id: string): Omit<ShownRocket, 'team' | 'name'> {
+function hiddenRocket(id: string): Omit<ShownRocket, 'team' | 'name' | 'skin'> {
   return { id, x: 0, y: 0, angle: 0, alive: false, respawnAt: 0, input: NO_INPUT }
 }
 

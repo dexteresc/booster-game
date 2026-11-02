@@ -2,15 +2,19 @@ import { Peer } from 'peerjs'
 import type { DataConnection, PeerOptions } from 'peerjs'
 import type { Input } from './sim/rocket.ts'
 import type { Mode, Team } from './maps/parse.ts'
+import type { Skin } from './art/skins.ts'
+import { cleanSkin } from './art/skins.ts'
 
+// Who a player is to the others: what they typed and picked in the menu, cleaned by the host.
+export type Pilot = { name: string; skin: Skin }
 // JSON the host sends joiners, next to binary snapshots (src/snapshot.ts).
-export type RoomPlayer = { id: string; name: string; team: Team }
+export type RoomPlayer = Pilot & { id: string; team: Team }
 export type RosterMessage = { type: 'roster'; mapName: string; mode: Mode; players: RoomPlayer[] }
 export type LobbyMessage = { type: 'lobby'; mapName: string; players: RoomPlayer[] }
 type HostMessage = RosterMessage | LobbyMessage | { type: 'full' } | { type: 'version' }
 
 export type HostHandlers = {
-  onJoin(id: string, name: string): boolean // false refuses: the room is full
+  onJoin(id: string, pilot: Pilot): boolean // false refuses: the room is full
   onLeave(id: string): void
   onInput(id: string, input: Input): void
   onError(err: Error): void
@@ -32,12 +36,13 @@ type Players = Map<DataConnection, number>
 // Peer-to-peer over WebRTC. The public PeerJS server only brokers the handshake;
 // game traffic goes browser to browser. The host runs the only real sim.
 // Raw data channel, every byte counts when it goes through the paid TURN relay:
-//   joiner → host  1 byte of input (1 left engine, 2 right engine), on change and every second as a heartbeat
+//   joiner → host  { name, skin, protocol } as connection metadata, then
+//                  1 byte of input (1 left engine, 2 right engine), on change and every second as a heartbeat
 //   host → joiner  binary snapshots (src/snapshot.ts), JSON text for the rest:
 //                  { type: 'roster' | 'lobby' | 'full' | 'version', ... }
 const ID_PREFIX = 'booster-game-'
 // Bump when the messages change: host and joiner must run the same version.
-const PROTOCOL = 2
+const PROTOCOL = 3
 const INPUT_HEARTBEAT_MS = 1000
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 // Closing a tab doesn't always fire 'close' on the other side, so silence = gone.
@@ -73,9 +78,14 @@ export function errorMessage(err: unknown): string {
 const NAME_LENGTH = 16
 
 // Player names come from other browsers: plain text, one line, short.
-export function cleanName(raw: unknown): string {
+function cleanName(raw: unknown): string {
   const name = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, NAME_LENGTH) : ''
   return name || 'Pilot'
+}
+
+// Skins are unlocked in the joiner's browser; the host can only check they exist, not that they were earned.
+export function cleanPilot(raw: { name?: unknown; skin?: unknown } | undefined): Pilot {
+  return { name: cleanName(raw?.name), skin: cleanSkin(raw?.skin) }
 }
 
 function randomCode() {
@@ -116,7 +126,7 @@ function acceptPlayer(players: Players, conn: DataConnection, handlers: HostHand
   conn.on('open', () => {
     // Older joiners use PeerJS's JSON channel and don't send a protocol; they just see the host leave.
     if (conn.serialization !== 'raw' || conn.metadata?.protocol !== PROTOCOL) refuse(conn, 'version')
-    else if (!handlers.onJoin(conn.peer, cleanName(conn.metadata?.name))) refuse(conn, 'full')
+    else if (!handlers.onJoin(conn.peer, cleanPilot(conn.metadata))) refuse(conn, 'full')
     else players.set(conn, Date.now())
   })
   conn.on('data', (msg) => {
@@ -150,7 +160,7 @@ function dropPlayer(players: Players, conn: DataConnection, handlers: HostHandle
 // (strict NAT, mobile data, relay down), WebRTC can stay "checking" without ever failing.
 const JOIN_TIMEOUT_MS = 15000
 
-export async function joinRoom(code: string, name: string, handlers: JoinHandlers): Promise<RoomClient> {
+export async function joinRoom(code: string, pilot: Pilot, handlers: JoinHandlers): Promise<RoomClient> {
   const options = await peerOptions()
   return new Promise((resolve, reject) => {
     const peer = new Peer(options)
@@ -168,7 +178,7 @@ export async function joinRoom(code: string, name: string, handlers: JoinHandler
 
     peer.on('error', onError)
     peer.on('open', (id) => {
-      const conn = peer.connect(ID_PREFIX + code, { serialization: 'raw', metadata: { name, protocol: PROTOCOL } })
+      const conn = peer.connect(ID_PREFIX + code, { serialization: 'raw', metadata: { ...pilot, protocol: PROTOCOL } })
       conn.on('error', onError) // failing before open emits 'error' but never 'close'
       conn.on('open', () => {
         clearTimeout(timer)

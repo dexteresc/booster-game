@@ -14,6 +14,7 @@ import { drawProp } from './art/props/index.ts'
 import { drawCannon, drawLaser, drawRocket } from './art/sprites.ts'
 import { createEffects } from './art/effects.ts'
 import { createPost } from './art/post.ts'
+import { createTrails } from './art/trail.ts'
 
 const MUZZLE_FLASH_SECONDS = 0.08 // after a shot
 const SHAKE = { strength: 16, reach: 900, decay: 7 } // explosions shake the camera: world units, distance, 1/s
@@ -31,6 +32,7 @@ type View = {
   effects: ReturnType<typeof createEffects>
   post: ReturnType<typeof createPost>
   shake: number // world units the camera jolts by, easing off
+  trails: ReturnType<typeof createTrails>
   scenery: Scenery | null
   sceneryFor: GameView | null // the game it was laid out for
   banner: { text: string; until: number } | null
@@ -64,6 +66,7 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
     effects: createEffects(),
     post: createPost(),
     shake: 0,
+    trails: createTrails(),
     scenery: null,
     sceneryFor: null,
     banner: null,
@@ -134,7 +137,7 @@ function followCamera(view: View, { me, game, w, h, scale, dt }: Omit<Frame, 'ca
   }
 }
 
-function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Frame, { effects, clock }: View) {
+function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Frame, { effects, trails, clock }: View) {
   const { map } = game
   ctx.setTransform(scale, 0, 0, scale, w / 2 - cam.x * scale, h / 2 - cam.y * scale)
   scenery.backdrop(ctx, cam.x, cam.y, clock)
@@ -146,10 +149,12 @@ function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Fra
     drawCannon(ctx, c, c.cooldown > config.cannon.fireInterval - MUZZLE_FLASH_SECONDS, clock)
   }
   for (const b of game.bullets) drawLaser(ctx, b)
-  for (const r of game.rockets) {
-    if (r.alive) effects.exhaust(r, config.rocket.engineOffset, dt)
+  for (const r of game.rockets.filter((rocket) => rocket.alive)) {
+    effects.exhaust(r, config.rocket.engineOffset, dt)
+    trails.shed(r, config.rocket.engineOffset, dt) // the skin's extras, on top of the exhaust
   }
   effects.draw(ctx, dt) // under the rockets, so exhaust trails behind them
+  trails.draw(ctx, dt)
   for (const r of game.rockets) {
     if (r.alive) drawRocket(ctx, r, config.rocket.engineOffset, r === me)
   }

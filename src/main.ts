@@ -1,7 +1,7 @@
 import type { Game, GameEvent } from './sim/game.ts'
 import type { Input } from './sim/rocket.ts'
 import type { Mode } from './maps/parse.ts'
-import type { HostHandlers, LobbyMessage, Room, RoomClient, RoomPlayer, RosterMessage } from './net.ts'
+import type { HostHandlers, LobbyMessage, Pilot, Room, RoomClient, RoomPlayer, RosterMessage } from './net.ts'
 import { config } from './config.ts'
 import { byId, find } from './dom.ts'
 import { flashLabel, relabel } from './button-label.ts'
@@ -10,8 +10,10 @@ import { addPlayer, createGame, maxPlayersPerTeam, removePlayer, step } from './
 import { createLocalInput } from './input.ts'
 import { createRenderer } from './render.ts'
 import { createTuningPanel } from './tuning.ts'
-import { cleanName, errorMessage, hostRoom, joinRoom } from './net.ts'
-import { loadName, showMenu } from './menu.ts'
+import { cleanPilot, errorMessage, hostRoom, joinRoom } from './net.ts'
+import { loadPilot, showMenu } from './menu.ts'
+import { storedProgress } from './progress.ts'
+import { unlockMessage } from './art/skins.ts'
 import { renderLobby, switchTeam, teamFor } from './lobby.ts'
 import { encodeSnapshot } from './snapshot.ts'
 import { createRemoteGame } from './remote-game.ts'
@@ -33,6 +35,7 @@ const ui = {
 const input = createLocalInput(canvas, config.keys)
 const draw = createRenderer(canvas, config)
 createTuningPanel(config)
+const progress = storedProgress() // skin unlocks, counted from what this screen shows
 
 let mode: Mode | null = null // picked in the menu
 let mapName: string | null = null
@@ -75,6 +78,7 @@ requestAnimationFrame(function frame(now) {
   advance()
   if (remote) drawEvents.push(...remote.show(now / 1000))
   const shown = remote ? remote.game : game
+  for (const goal of shown ? progress.observe(shown, localId, elapsed) : []) showStatus(unlockMessage(goal))
   if (shown) draw(shown, localId, drawEvents, elapsed)
   drawEvents = []
   requestAnimationFrame(frame)
@@ -103,10 +107,10 @@ function runSim(sim: Game, elapsed: number, local: Input) {
 }
 
 // From the menu, or straight in from a ?map= link (the editor's Play).
-async function start(pickedMode: Mode, name: string) {
+async function start(pickedMode: Mode, pilot: Pilot) {
   ui.menu.hidden = true
   mode = pickedMode
-  players = [{ id: LOCAL_ID, name: cleanName(name), team: 'blue' }]
+  players = [{ id: LOCAL_ID, ...cleanPilot(pilot), team: 'blue' }]
   selectMap(mapFor(mode))
   if (mode === 'pve') newGame()
   else if (await openRoom()) openLobby()
@@ -123,7 +127,7 @@ function newGame() {
 // Snapshots list rockets by roster order, so joiners hear who's who (and the map) first, and again on any change.
 function sendRoster(activeRoom: Room, sim: Game) {
   if (!mapName) throw new Error('Match running without a map')
-  const roster: RosterMessage = { type: 'roster', mapName, mode: sim.mode, players: sim.rockets.map(({ id, name, team }) => ({ id, name, team })) }
+  const roster: RosterMessage = { type: 'roster', mapName, mode: sim.mode, players: sim.rockets.map(({ id, name, team, skin }) => ({ id, name, team, skin })) }
   const key = JSON.stringify(roster)
   if (key === rosterKey) return
   activeRoom.broadcast(roster)
@@ -201,10 +205,10 @@ function keepLobbyAlive(activeRoom: Room, elapsed: number) {
 }
 
 const hostHandlers: HostHandlers = {
-  onJoin(id, name) {
+  onJoin(id, pilot) {
     const team = teamForJoiner()
     if (!team) return false
-    const player = { id, name, team }
+    const player = { id, ...pilot, team }
     players.push(player)
     if (game) addPlayer(game, player)
     refreshLobby()
@@ -267,7 +271,7 @@ async function copyInvite(event: Event) {
 
 ui.invite.onclick = copyInvite
 
-async function join(code: string, name: string) {
+async function join(code: string, pilot: Pilot) {
   ui.menu.hidden = true
   showStatus(`Joining ${code}…`)
   const joined = createRemoteGame()
@@ -275,7 +279,7 @@ async function join(code: string, name: string) {
   const onSnapshot = (buffer: ArrayBuffer) => joined.snapshot(buffer, performance.now() / 1000)
   remote = joined
   try {
-    client = await joinRoom(code, cleanName(name), { onSnapshot, onRoster, onLobby, onClose: backToMenu })
+    client = await joinRoom(code, cleanPilot(pilot), { onSnapshot, onRoster, onLobby, onClose: backToMenu })
   } catch (err) {
     console.error(`Joining ${code} failed`, err)
     backToMenu(`Couldn't join ${code}: ${errorMessage(err)}`)
@@ -318,10 +322,10 @@ function backToMenu(reason?: string) {
 
 function openMenu(code: string) {
   const handlers = {
-    onPick: (pickedMode: Mode, name: string) => run(start(pickedMode, name), 'Starting the game'),
-    onJoin: (name: string) => run(join(code, name), `Joining ${code}`),
+    onPick: (pickedMode: Mode, pilot: Pilot) => run(start(pickedMode, pilot), 'Starting the game'),
+    onJoin: (pilot: Pilot) => run(join(code, pilot), `Joining ${code}`),
   }
-  showMenu(ui.menu, { joinCode: code, rules: config.rules, handlers })
+  showMenu(ui.menu, { joinCode: code, rules: config.rules, stats: progress.stats, handlers })
 }
 
 // For async work nobody awaits: a failure still reaches the console and the player.
@@ -342,6 +346,6 @@ const joinCode = location.hash.slice(1).toUpperCase()
 const linkedMap = new URLSearchParams(location.search).get('map')
 refreshControls()
 if (joinCode) openMenu(joinCode)
-else if (linkedMap && maps[linkedMap]) run(start(maps[linkedMap].mode, loadName()), 'Starting the game')
+else if (linkedMap && maps[linkedMap]) run(start(maps[linkedMap].mode, loadPilot()), 'Starting the game')
 else openMenu('')
 if (linkedMap && !maps[linkedMap]) showStatus(`No map "${linkedMap}". Maps: ${Object.keys(maps).join(', ')}`)
