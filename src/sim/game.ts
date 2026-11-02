@@ -1,5 +1,6 @@
 import type { Config } from '../config.ts'
 import type { Base, GameMap, Mode, Rect, Team } from '../maps/parse.ts'
+import type { Skin } from '../art/skins.ts'
 import type { Bullet, Cannon } from './cannon.ts'
 import type { Input, Rocket } from './rocket.ts'
 import { FOOT_Y, NO_INPUT, SLOT_SPACING, spawnState, stepRocket } from './rocket.ts'
@@ -9,7 +10,7 @@ import { cannonPedestal, stepBullets, stepCannons } from './cannon.ts'
 // state, so it can run unchanged on a server or in lockstep between peers.
 // All state is plain data; src/snapshot.ts packs what joiners need into bytes.
 
-type NewPlayer = { id: string; team: Team; name?: string }
+type NewPlayer = { id: string; team: Team; name?: string; skin: Skin }
 
 type TeamState = {
   score: number
@@ -33,7 +34,7 @@ export type Game = {
 }
 
 // What the screen needs. The host's Game fits; a joiner's copy, rebuilt from snapshots, has only this.
-export type ShownRocket = Pick<Rocket, 'id' | 'team' | 'name' | 'x' | 'y' | 'angle' | 'alive' | 'respawnAt' | 'input'>
+export type ShownRocket = Pick<Rocket, 'id' | 'team' | 'name' | 'skin' | 'x' | 'y' | 'angle' | 'alive' | 'respawnAt' | 'input'>
 export type ShownBullet = Omit<Bullet, 'life'>
 export type GameView = Omit<Game, 'rockets' | 'bullets'> & { rockets: ShownRocket[]; bullets: ShownBullet[] }
 
@@ -84,12 +85,12 @@ export function maxPlayersPerTeam(game: Pick<Game, 'map'>, team: Team): number {
   return Math.floor(game.map.bases[team].pad.w / SLOT_SPACING)
 }
 
-export function addPlayer(game: Game, { id, team, name = '' }: NewPlayer): void {
+export function addPlayer(game: Game, { id, team, name = '', skin }: NewPlayer): void {
   const taken = new Set(game.rockets.filter((r) => r.team === team).map((r) => r.slot))
   let slot = 0
   while (taken.has(slot)) slot++
   if (slot >= maxPlayersPerTeam(game, team)) throw new Error(`Team ${team} is full, can't add player ${id}`)
-  game.rockets.push({ id, team, name, slot, respawnAt: 0, ...spawnState(slot, game.map.bases[team].pad) })
+  game.rockets.push({ id, team, name, skin, slot, respawnAt: 0, ...spawnState(slot, game.map.bases[team].pad) })
 }
 
 export function removePlayer(game: Game, id: string): void {

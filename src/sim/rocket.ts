@@ -1,5 +1,6 @@
 import type { Config } from '../config.ts'
 import type { GameMap, Rect, Team } from '../maps/parse.ts'
+import type { Skin } from '../art/skins.ts'
 import { solidAt, wrapAngle } from './geometry.ts'
 
 export type Input = { left: boolean; right: boolean }
@@ -8,6 +9,7 @@ export type Rocket = {
   id: string
   team: Team
   name: string
+  skin: Skin // cosmetic, drawn by src/art/; carried here like name so joiners hear it in the roster
   slot: number // place along the team's pad
   x: number
   y: number

@@ -164,6 +164,65 @@
         font-size: 13px;
         opacity: 0.8;
       }
+      .menu-appearance {
+        margin-left: 6px;
+      }
+      dialog.panel {
+        padding: 20px;
+      }
+      dialog.panel::backdrop {
+        background: rgba(0, 0, 0, 0.5);
+      }
+      .skin-layout {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 12px;
+        align-items: start;
+        margin: 0 0 16px;
+        text-align: left;
+      }
+      .skin-layout canvas {
+        width: 120px;
+        height: 110px;
+        border-radius: 6px;
+      }
+      @media (max-width: 420px) {
+        .skin-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      .skin-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+      .skin-row span {
+        width: 44px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.7;
+      }
+      .skin-row button {
+        padding: 2px 8px;
+        font-size: 12px;
+      }
+      .skin-row button.on {
+        border-color: #ff7a1a;
+        background: rgba(255, 122, 26, 0.3);
+      }
+      .skin-row button.locked {
+        opacity: 0.5;
+      }
+      .skin-hint {
+        grid-column: 1 / -1;
+        margin: 0;
+        min-height: 1.2em;
+        font-size: 12px;
+        color: #ffb36b;
+      }
       .menu-join,
       .lobby-start {
         font-size: 18px;
@@ -243,7 +302,10 @@
     </div>
     <div id="menu" class="panel" hidden>
       <h1>BOOSTER</h1>
-      <label>Your name <input id="player-name" maxlength="16" autocomplete="nickname" placeholder="Pilot" /></label>
+      <label>
+        Your name <input id="player-name" maxlength="16" autocomplete="nickname" placeholder="Pilot" />
+        <button type="button" class="menu-appearance">🎨 Appearance</button>
+      </label>
       <div class="menu-modes">
         <button data-mode="pve">
           <canvas></canvas>
@@ -266,6 +328,15 @@
       <p class="lobby-wait">Waiting for the host to start…</p>
       <button class="lobby-start">Start match</button>
     </div>
+    <dialog id="appearance" class="panel" aria-label="Appearance">
+      <h1>APPEARANCE</h1>
+      <div class="skin-layout">
+        <canvas aria-label="Your rocket"></canvas>
+        <div class="skin-parts"></div>
+        <p class="skin-hint" aria-live="polite"></p>
+      </div>
+      <form method="dialog"><button class="skin-done">Done</button></form>
+    </dialog>
     <div id="status" hidden></div>
     <div id="tuning" hidden></div>
     <script type="module" src="src/main.ts"></script>

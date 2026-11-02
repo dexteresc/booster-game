@@ -11,6 +11,7 @@ import { drawSolid } from './art/solids.ts'
 import { drawProp } from './art/props/index.ts'
 import { drawCannon, drawLaser, drawRocket } from './art/sprites.ts'
 import { createEffects } from './art/effects.ts'
+import { createTrails } from './art/trail.ts'
 
 const MUZZLE_FLASH_SECONDS = 0.08 // after a shot
 const OBJECTIVE_MARGIN = 48 // CSS pixels from the screen edge to the pin's center: keeps its point on screen
@@ -25,6 +26,7 @@ type Point = { x: number; y: number }
 type View = {
   touch: boolean
   effects: ReturnType<typeof createEffects>
+  trails: ReturnType<typeof createTrails>
   scenery: Scenery | null
   sceneryFor: GameView | null // the game it was laid out for
   banner: { text: string; until: number } | null
@@ -56,6 +58,7 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
   const view: View = {
     touch: matchMedia('(pointer: coarse)').matches,
     effects: createEffects(),
+    trails: createTrails(),
     scenery: null,
     sceneryFor: null,
     banner: null,
@@ -115,7 +118,7 @@ function followCamera(view: View, { me, game, w, h, scale, dt }: Omit<Frame, 'ca
   }
 }
 
-function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Frame, { effects, clock }: View) {
+function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Frame, { effects, trails, clock }: View) {
   const { map } = game
   ctx.setTransform(scale, 0, 0, scale, w / 2 - cam.x * scale, h / 2 - cam.y * scale)
   scenery.backdrop(ctx, cam.x, cam.y, clock)
@@ -127,6 +130,10 @@ function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Fra
     drawCannon(ctx, c, c.cooldown > config.cannon.fireInterval - MUZZLE_FLASH_SECONDS, clock)
   }
   for (const b of game.bullets) drawLaser(ctx, b)
+  for (const r of game.rockets) {
+    if (r.alive) trails.shed(r, config.rocket.engineOffset, dt)
+  }
+  trails.draw(ctx, dt) // under the rockets: a trail comes out behind
   for (const r of game.rockets) {
     if (r.alive) drawRocket(ctx, r, config.rocket.engineOffset, r === me)
   }

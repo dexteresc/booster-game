@@ -7,7 +7,7 @@ export type Snapshot = {
   time: number
   winner: Team | null
   teams: Record<Team, { score: number; flagCarrier: string | null }>
-  rockets: Omit<ShownRocket, 'team' | 'name'>[] // who's who comes from the roster
+  rockets: Omit<ShownRocket, 'team' | 'name' | 'skin'>[] // who's who (and their skin) comes from the roster
   cannons: { aim: number; cooldown: number }[]
   bullets: ShownBullet[]
   events: GameEvent[]
