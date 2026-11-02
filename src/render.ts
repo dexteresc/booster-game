@@ -149,12 +149,11 @@ function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Fra
     drawCannon(ctx, c, c.cooldown > config.cannon.fireInterval - MUZZLE_FLASH_SECONDS, clock)
   }
   for (const b of game.bullets) drawLaser(ctx, b)
-  for (const r of game.rockets.filter((rocket) => rocket.alive)) {
-    effects.exhaust(r, config.rocket.engineOffset, dt)
-    trails.shed(r, config.rocket.engineOffset, dt) // the skin's extras, on top of the exhaust
+  for (const r of game.rockets) {
+    if (r.alive) trails.shed(r, config.rocket.engineOffset, dt)
   }
-  effects.draw(ctx, dt) // under the rockets, so exhaust trails behind them
-  trails.draw(ctx, dt)
+  effects.draw(ctx, dt)
+  trails.draw(ctx, dt) // under the rockets, so exhaust trails behind them
   for (const r of game.rockets) {
     if (r.alive) drawRocket(ctx, r, config.rocket.engineOffset, r === me)
   }

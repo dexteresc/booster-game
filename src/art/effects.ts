@@ -1,24 +1,17 @@
 import { COLOR, TEAM } from './theme.ts'
 import { TAU, additive, glowDot, rand } from './brush.ts'
-import { NOZZLE_Y } from './sprites.ts'
-import { toWorld } from '../sim/rocket.ts'
-import { rotate } from '../sim/geometry.ts'
 import type { Point } from './brush.ts'
-import type { GameEvent, ShownRocket } from '../sim/game.ts'
-import type { Rocket } from '../sim/rocket.ts'
+import type { GameEvent } from '../sim/game.ts'
 
 export type Explosion = Omit<Extract<GameEvent, { type: 'explode' }>, 'type'>
-// Joiners don't know a rocket's velocity; its exhaust then leaves the nozzle as if it stood still.
-type Exhausting = ShownRocket & Partial<Pick<Rocket, 'vx' | 'vy'>>
 
 type MinMax = [min: number, max: number]
-type Look = { gravity: number; size: number } & ({ kind: 'smoke' | 'flash' | 'puff' | 'ember' } | { kind: 'spark'; color: string })
+type Look = { gravity: number; size: number } & ({ kind: 'smoke' | 'flash' } | { kind: 'spark'; color: string })
 type Particle = Look & { x: number; y: number; vx: number; vy: number; life: number; max: number }
 
-const EXHAUST_RATE = 70 // particles per second per engine
-const ADDITIVE = new Set<Particle['kind']>(['ember', 'flash', 'spark'])
+const ADDITIVE = new Set<Particle['kind']>(['flash', 'spark'])
 
-// Explosions: smoke under, flash + sparks on top. Engine exhaust: embers and puffs blown out of the nozzles.
+// Explosions: smoke under, flash + sparks on top. Engine exhaust is a trail (trail.ts).
 // Render-only, so Math.random is fine.
 export function createEffects() {
   let particles: Particle[] = []
@@ -26,14 +19,6 @@ export function createEffects() {
   return {
     explode(at: Explosion) {
       particles.push(...burst(at))
-    },
-
-    exhaust(rocket: Exhausting, engineOffset: number, dt: number) {
-      for (const [side, on] of [[-1, rocket.input.left], [1, rocket.input.right]] as const) {
-        if (!on) continue
-        const count = Math.floor(EXHAUST_RATE * dt + Math.random())
-        for (let n = 0; n < count; n++) particles.push(exhaustParticle(rocket, side * engineOffset))
-      }
     },
 
     draw(ctx: CanvasRenderingContext2D, dt: number) {
@@ -70,28 +55,9 @@ function burst({ x, y, team }: Explosion) {
   return [...smoke, flash, ...sparks]
 }
 
-// Out of the nozzle at x (rocket-local), along the rocket's down axis, on top of the rocket's own speed.
-function exhaustParticle(rocket: Exhausting, x: number): Particle {
-  const [px, py] = toWorld(rocket, [x, NOZZLE_Y])
-  const [vx, vy] = rotate(rand(-35, 35), rand(150, 260), rocket.angle)
-  const ember = Math.random() < 0.45
-  const life = ember ? rand(0.15, 0.35) : rand(0.45, 0.85)
-  return {
-    x: px,
-    y: py,
-    vx: (rocket.vx ?? 0) + vx,
-    vy: (rocket.vy ?? 0) + vy,
-    life,
-    max: life,
-    kind: ember ? 'ember' : 'puff',
-    gravity: 0,
-    size: ember ? rand(1.2, 2.4) : rand(2.5, 4.5),
-  }
-}
-
 function move(moving: Particle, dt: number) {
   moving.vy += moving.gravity * dt
-  if (moving.kind === 'smoke' || moving.kind === 'puff') {
+  if (moving.kind === 'smoke') {
     moving.vx *= 1 - 2.5 * dt
     moving.vy *= 1 - 2.5 * dt
   }
@@ -104,12 +70,6 @@ function drawParticle(ctx: CanvasRenderingContext2D, speck: Particle, lifeLeft: 
   switch (speck.kind) {
     case 'smoke':
       disc(ctx, speck, speck.size * (2 - lifeLeft), { color: COLOR.smoke, alpha: lifeLeft * 0.45 })
-      break
-    case 'puff':
-      disc(ctx, speck, speck.size * (3.2 - 2.2 * lifeLeft), { color: COLOR.exhaust, alpha: lifeLeft * 0.4 })
-      break
-    case 'ember':
-      disc(ctx, speck, speck.size * (0.5 + lifeLeft * 0.5), { ...fading, color: COLOR.flame[lifeLeft > 0.5 ? 0 : 1] })
       break
     case 'flash':
       glowDot(ctx, speck.x, speck.y, { ...fading, radius: speck.size * (1.6 - lifeLeft), color: COLOR.spark[0] })

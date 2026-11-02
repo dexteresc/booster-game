@@ -11,8 +11,8 @@ Two-engine rocket capture-the-flag in the browser. Pick a mode on the start scre
 Your name shows above your rocket for the others: blue for your team, red for theirs.
 Multiplayer is peer-to-peer, see [TURN.md](TURN.md).
 
-**Skins**: the start screen lets you pick your rocket's body, paint, engine flame and trail (rainbow, glitter,
-petals, ash). Most options are locked until you reach a goal: capture flags, win matches, burn engine time, go
+**Skins**: the start screen lets you pick your rocket's body, paint, engine flame and trail (exhaust, rainbow,
+glitter, petals, ash). Most options are locked until you reach a goal: capture flags, win matches, burn engine time, go
 down often enough. Click a locked option to see its goal and how far you are. Progress and your pick are saved
 in the browser only; other players see your skin, not your progress. `?unlock` in the URL unlocks everything for
 that page load without saving, to try skins out.

@@ -74,7 +74,7 @@ export function stepRocket(rocket: Rocket, map: GameMap, config: Config, dt: num
   return resolveContact(rocket, map, config.rocket.safeLandingAngle, dt)
 }
 
-export function toWorld(rocket: Pick<Rocket, 'x' | 'y' | 'angle'>, [lx, ly]: Point): Point {
+function toWorld(rocket: Pick<Rocket, 'x' | 'y' | 'angle'>, [lx, ly]: Point): Point {
   const [dx, dy] = rotate(lx, ly, rocket.angle)
   return [rocket.x + dx, rocket.y + dy]
 }
