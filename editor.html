@@ -132,12 +132,14 @@
       <label>Biome <select id="biome"></select></label>
       <label>Width <input id="width" type="number" min="100" step="100" /></label>
       <label>Height <input id="height" type="number" min="100" step="100" /></label>
+      <label>Gravity <input id="gravity" type="number" min="0.1" step="0.1" title="Share of normal gravity" /></label>
       <div class="row">
         <button data-tool="select">Select V</button>
       </div>
       <div id="palette"></div>
       <div class="row">
         <button id="flip">Flip F</button>
+        <button id="shape" title="Square, round or lumpy">Shape O</button>
         <button id="delete">Delete</button>
         <button id="undo">Undo</button>
         <button id="mirror" title="Replace the right half with a mirror image of the left half">Mirror ⇆</button>
@@ -149,7 +151,7 @@
       <div id="info"></div>
       <p id="status" role="status"></p>
       <p class="help">
-        Blocks: drag out a rect. Props and cannons: click a surface; props are decoration, rockets fly through them, F flips one. Drag things to
+        Blocks: drag out a rect. Props and cannons: click a surface; props are decoration, rockets fly through them, F flips a prop or hangs a cannon under its block, O cycles a block through square, round and lumpy. Drag things to
         move them, drag edges to resize. Drag empty space or right-drag to pan. Scroll to pan, pinch or ⌘-scroll to zoom. PvE: orange pad =
         players' base, red pad + cannons = CPU. PvP: symmetric, each team's cannons guard its base; build the left half, then Mirror.
         Saving reloads any open game tab.

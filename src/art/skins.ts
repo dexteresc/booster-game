@@ -12,7 +12,7 @@ type Option = { label: string; unlock: GoalId | null }
 type Body = Option & { path: string; tip: number }
 type Paint = Option & { hull: Palette | null } // null: the team's colors
 type Flame = Option & { colors: readonly [nozzle: string, mid: string, tip: string] }
-type Trail = Option & { kind: 'none' | 'rainbow' | 'petals' | 'ash' | 'glitter' }
+type Trail = Option & { kind: 'exhaust' | 'rainbow' | 'petals' | 'ash' | 'glitter' }
 
 export const SKINS = {
   body: {
@@ -39,7 +39,7 @@ export const SKINS = {
     white: { label: 'Plasma', unlock: 'win-1', colors: ['rgba(255,255,255,1)', 'rgba(200,230,255,0.9)', 'rgba(120,180,255,0)'] },
   },
   trail: {
-    none: { label: 'None', unlock: null, kind: 'none' },
+    exhaust: { label: 'Exhaust', unlock: null, kind: 'exhaust' },
     ash: { label: 'Ash', unlock: 'crash-10', kind: 'ash' },
     glitter: { label: 'Glitter', unlock: 'fly-10m', kind: 'glitter' },
     petals: { label: 'Petals', unlock: 'match-10', kind: 'petals' },
@@ -55,7 +55,7 @@ export const SKINS = {
 export type SkinPart = keyof typeof SKINS
 export type Skin = { [P in SkinPart]: keyof (typeof SKINS)[P] }
 export const SKIN_PARTS = Object.keys(SKINS) as SkinPart[]
-export const DEFAULT_SKIN: Readonly<Skin> = Object.freeze({ body: 'classic', paint: 'team', flame: 'classic', trail: 'none' })
+export const DEFAULT_SKIN: Readonly<Skin> = Object.freeze({ body: 'classic', paint: 'team', flame: 'classic', trail: 'exhaust' })
 
 // Skins come from storage and from other browsers: an unknown part option becomes the default.
 export function cleanSkin(raw: unknown): Skin {

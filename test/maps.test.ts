@@ -35,9 +35,14 @@ assert.throws(broken((m) => { m.solids[1].kind = 'cheese' }), /solids\[1\]\.kind
 assert.throws(broken((m) => { m.solids[0].water = true }), /solids\[0\]\.water is no longer a field/)
 assert.throws(broken((m) => { m.props = [{ kind: 'tree', x: 0, y: 0 }] }), /props\[0\]\.kind must be one of lamp,starburst/)
 assert.equal('extra' in parseMap({ ...canyon, extra: 1 }, 'test'), false, 'unknown fields dropped')
-assert.throws(broken((m) => { m.biome = 'moon' }), /biome must be one of desert,jungle,nautic/)
+assert.throws(broken((m) => { m.biome = 'mars' }), /biome must be one of desert,jungle,nautic,belt/)
+assert.throws(broken((m) => { m.gravity = 0 }), /gravity must be positive/)
+assert.throws(broken((m) => { m.solids[1].shape = 'square' }), /solids\[1\]\.shape must be one of round,lumpy/)
+assert.throws(broken((m) => { m.solids[1].spin = 'fast' }), /solids\[1\]\.spin/)
 assert.throws(broken((m) => { m.mode = 'solo' }), /mode must be one of pve,pvp/)
 const flipped = parseMap({ ...canyon, props: [{ kind: 'lamp', x: 1, y: 2, flip: true }, { kind: 'lamp', x: 1, y: 2, flip: 'yes' }] }, 'test').props
 assert.deepEqual(flipped, [{ kind: 'lamp', x: 1, y: 2, flip: true }, { kind: 'lamp', x: 1, y: 2 }], 'flip kept only when true')
+const hanging = parseMap({ ...canyon, cannons: [{ x: 1, y: 2, team: 'red', hang: true }, { x: 1, y: 2, team: 'red', hang: 1 }] }, 'test').cannons
+assert.deepEqual(hanging, [{ x: 1, y: 2, team: 'red', hang: true }, { x: 1, y: 2, team: 'red' }], 'hang kept only when true')
 
 console.log('maps ok')

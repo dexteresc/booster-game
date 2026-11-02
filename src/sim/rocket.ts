@@ -1,7 +1,7 @@
 import type { Config } from '../config.ts'
 import type { GameMap, Rect, Team } from '../maps/parse.ts'
 import type { Skin } from '../art/skins.ts'
-import { solidAt, wrapAngle } from './geometry.ts'
+import { rotate, solidAt, topAt, wrapAngle } from './geometry.ts'
 
 export type Input = { left: boolean; right: boolean }
 
@@ -31,6 +31,7 @@ const HULL: readonly Point[] = [[0, -24], [-8, -10], [8, -10], [-8, 0], [8, 0], 
 export const FEET: readonly Point[] = [[-13, 18], [13, 18]]
 export const FOOT_Y = 18
 const MAX_FOOT_SINK = 8 // a foot deeper than this (beyond this tick's fall) hit a wall side, not a top surface
+const MAX_SLOPE = 1 // feet on a curved top steeper than 45° slip off: crash
 
 export const NO_INPUT: Readonly<Input> = Object.freeze({ left: false, right: false })
 export const SLOT_SPACING = 40 // spawn slots sit this far apart along a pad, the first one this far in
@@ -63,7 +64,7 @@ export function stepRocket(rocket: Rocket, map: GameMap, config: Config, dt: num
 
   const push = left + right
   rocket.vx += push * Math.sin(rocket.angle) * dt
-  rocket.vy += (config.world.gravity - push * Math.cos(rocket.angle)) * dt
+  rocket.vy += (config.world.gravity * (map.gravity ?? 1) - push * Math.cos(rocket.angle)) * dt
   const keep = Math.max(0, 1 - drag * dt)
   rocket.vx *= keep
   rocket.vy *= keep
@@ -73,10 +74,9 @@ export function stepRocket(rocket: Rocket, map: GameMap, config: Config, dt: num
   return resolveContact(rocket, map, config.rocket.safeLandingAngle, dt)
 }
 
-function toWorld(rocket: Rocket, [lx, ly]: Point): Point {
-  const c = Math.cos(rocket.angle)
-  const s = Math.sin(rocket.angle)
-  return [rocket.x + lx * c - ly * s, rocket.y + lx * s + ly * c]
+function toWorld(rocket: Pick<Rocket, 'x' | 'y' | 'angle'>, [lx, ly]: Point): Point {
+  const [dx, dy] = rotate(lx, ly, rocket.angle)
+  return [rocket.x + dx, rocket.y + dy]
 }
 
 function resolveContact(rocket: Rocket, map: GameMap, safeLandingAngle: number, dt: number): boolean {
@@ -89,8 +89,9 @@ function resolveContact(rocket: Rocket, map: GameMap, safeLandingAngle: number, 
     const [x, y] = toWorld(rocket, p)
     const rect = solidAt(map, x, y)
     if (!rect) continue
-    if (rect.kind === 'water' || y - rect.y > maxSink) return true // sea is never a landing spot
-    surface = Math.min(surface, rect.y)
+    const top = topAt(rect, x)
+    if (!top || y - top.y > maxSink || top.slope > MAX_SLOPE) return true
+    surface = Math.min(surface, top.y)
   }
   if (surface === Infinity) return false
 

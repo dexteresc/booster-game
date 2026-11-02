@@ -1,7 +1,8 @@
 import { propBounds } from '../art/props/boxes.ts'
-import { MIN_PAD_WIDTH, PROP_KINDS } from '../maps/parse.ts'
+import { MIN_PAD_WIDTH, PROP_KINDS, SHAPES } from '../maps/parse.ts'
 import type { CannonSpot, GameMap, Prop, PropKind, Rect, Solid, SolidKind } from '../maps/parse.ts'
 import { cannonPedestal } from '../sim/cannon.ts'
+import { bottomAt, solidAt, topAt } from '../sim/geometry.ts'
 
 // Editor state and edits on it. No DOM here.
 // An item's obj lives inside editor.map. Solids and pads are rects; cannons and props stand on a surface.
@@ -27,7 +28,7 @@ export type Editor = {
 
 export const GRID = 10
 const CANNON_HEIGHT = 30 // click box: pedestal wide, this tall
-const SURFACE_REACH = 40 // a cannon or prop dropped this far below a top edge still lands on it
+const SURFACE_REACH = 40 // a cannon or prop dropped this far past a surface still lands on it
 
 export function createEditor(name: string | null, map: GameMap): Editor {
   return {
@@ -79,13 +80,35 @@ export function undo(editor: Editor): void {
   editor.selected = null
 }
 
-// Mirrors the selected prop to face the other way. Left out of the file when false.
+export const isFlippable = (item: Item | null): item is StandingItem => item?.kind === 'prop' || item?.kind === 'cannon'
+
+// Mirrors the selected prop to face the other way, or turns the selected cannon over to hang under
+// the block it stands on (and back). Left out of the file when false.
 export function flipSelected(editor: Editor): void {
   const { selected } = editor
-  if (selected?.kind !== 'prop') return
+  if (!isFlippable(selected)) return
   remember(editor)
-  if (selected.obj.flip) delete selected.obj.flip
+  if (selected.kind === 'cannon') turnOver(editor.map, selected.obj)
+  else if (selected.obj.flip) delete selected.obj.flip
   else selected.obj.flip = true
+}
+
+function turnOver(map: GameMap, cannon: CannonSpot): void {
+  const block = solidAt(map, cannon.x, cannon.hang ? cannon.y - 1 : cannon.y + 1)
+  if (cannon.hang) delete cannon.hang
+  else cannon.hang = true
+  if (!block || !map.solids.includes(block)) return
+  cannon.y = (cannon.hang ? bottomAt(block, cannon.x) : topAt(block, cannon.x)?.y) ?? cannon.y
+}
+
+// Cycles the selected solid square → round → lumpy → square. Left out of the file when square.
+export function shapeSelected(editor: Editor): void {
+  const { selected } = editor
+  if (selected?.kind !== 'solid') return
+  remember(editor)
+  const next = SHAPES[selected.obj.shape ? SHAPES.indexOf(selected.obj.shape) + 1 : 0]
+  if (next) selected.obj.shape = next
+  else delete selected.obj.shape
 }
 
 // Pads can't go: every map needs both bases.
@@ -157,18 +180,27 @@ function addStanding(editor: Editor, item: StandingItem, at: Point): void {
   editor.selected = item
 }
 
-// Cannons and props stand on the nearest top surface under the pointer.
-export function placeOnSurface(map: GameMap, obj: Point, at: Point): void {
+// Cannons and props stand on the nearest top surface under the pointer; a hanging cannon hangs from
+// the nearest underside above it.
+export function placeOnSurface(map: GameMap, obj: Point & { hang?: boolean }, at: Point): void {
   obj.x = snap(at.x)
-  obj.y = surfaceBelow(map, obj.x, at.y) ?? snap(at.y)
+  obj.y = (obj.hang ? undersideAbove(map, obj.x, at.y) : surfaceBelow(map, obj.x, at.y)) ?? snap(at.y)
 }
 
-// Nothing stands on the sea.
 function surfaceBelow(map: GameMap, x: number, y: number): number | null {
-  const tops = [...map.solids.filter((s) => s.kind !== 'water'), ...Object.values(map.bases).map((b) => b.pad)]
-    .filter((s) => x >= s.x && x <= s.x + s.w && s.y >= y - SURFACE_REACH)
-    .map((s) => s.y)
+  const tops = [...map.solids, ...Object.values(map.bases).map((b) => b.pad)]
+    .filter((s) => x >= s.x && x <= s.x + s.w)
+    .map((s) => topAt(s, x)?.y)
+    .filter((top): top is number => top !== undefined && top >= y - SURFACE_REACH)
   return tops.length ? Math.min(...tops) : null
+}
+
+function undersideAbove(map: GameMap, x: number, y: number): number | null {
+  const bottoms = map.solids
+    .filter((s) => x >= s.x && x <= s.x + s.w)
+    .map((s) => bottomAt(s, x))
+    .filter((bottom): bottom is number => bottom !== null && bottom <= y + SURFACE_REACH)
+  return bottoms.length ? Math.max(...bottoms) : null
 }
 
 export function minSize(item: Item): { w: number; h: number } {
@@ -190,7 +222,7 @@ export function boundsOf({ kind, obj }: Item): Rect {
   if (kind === 'prop') return propBounds(obj)
   if (kind !== 'cannon') return obj
   const { x, w } = cannonPedestal(obj)
-  return { x, y: obj.y - CANNON_HEIGHT, w, h: CANNON_HEIGHT }
+  return { x, y: obj.hang ? obj.y : obj.y - CANNON_HEIGHT, w, h: CANNON_HEIGHT }
 }
 
 // Which edges of rect are within tol of point, or null.

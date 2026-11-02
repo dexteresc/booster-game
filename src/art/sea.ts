@@ -65,10 +65,12 @@ function drawReflection(ctx: CanvasRenderingContext2D, rect: Rect, { rain, mirro
   const h = Math.min(bottom - top, top)
   if (h <= 0) return
 
+  // Sized to the screen, not to h: h changes every frame the camera moves, and resizing a canvas
+  // throws away and reallocates its backing texture. Only rows 0..h are written and read.
   const w = ctx.canvas.width
-  if (mirror.width !== w || mirror.height !== h) {
+  if (mirror.width !== w || mirror.height !== ctx.canvas.height) {
     mirror.width = w
-    mirror.height = h
+    mirror.height = ctx.canvas.height
   }
   context2d(mirror).drawImage(ctx.canvas, 0, top - h, w, h, 0, 0, w, h)
   ctx.save()

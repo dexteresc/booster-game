@@ -1,18 +1,23 @@
 // Map format, checked wherever maps come in (game load, editor save on the dev server).
 // Rects are { x, y, w, h } with y pointing down. Solids block rockets; `kind` picks the look:
 // left out = rock, 'water' is sea (touching it crashes), the rest are building materials.
+// shape: 'round' fills the ellipse inside the rect instead (domes, tanks), 'lumpy' a rough potato outline
+// (asteroids); left out = rect. spin: turns the solid about its rect's center, radians per
+// second, clockwise; a spinning solid can't be landed on.
 // Props are decoration standing on a surface, no collision; `flip: true` mirrors one to face the
-// other way. Cannon x,y = the surface it stands on.
+// other way. Cannon x,y = the surface it stands on; `hang: true` hangs one upside down from the underside at x,y.
 // biome picks how rock, the hills and the weather look (src/art/theme.ts BIOMES); left out = desert.
 // mode: 'pve' = co-op vs CPU, blue (players) steal red's flag past red cannons; left out = pve.
 // 'pvp' = team vs team: symmetric, both teams have a flag and cannons near their base.
+// gravity: share of config.world.gravity on this map (0.4 = floaty); left out = 1.
 // Returns a clean copy with only known fields; throws naming the bad field.
 
 import { SLOT_SPACING } from '../sim/rocket.ts'
 
 export const TEAMS = ['blue', 'red'] as const
 const MODES = ['pve', 'pvp'] as const
-export const BIOME_NAMES = ['desert', 'jungle', 'nautic'] as const
+export const BIOME_NAMES = ['desert', 'jungle', 'nautic', 'belt'] as const
+export const SHAPES = ['round', 'lumpy'] as const
 export const SOLID_KINDS = ['water', 'concrete', 'metal', 'hazard', 'panel', 'glass', 'planks', 'hull', 'stone'] as const // art in src/art/solids.ts
 export const PROP_KINDS = ['lamp', 'starburst', 'beacon', 'tank', 'radar', 'saucer', 'palm', 'statue'] as const // art in src/art/props/
 export const MIN_PAD_WIDTH = SLOT_SPACING // room for one spawn slot
@@ -22,15 +27,17 @@ export type Mode = (typeof MODES)[number]
 export type Biome = (typeof BIOME_NAMES)[number]
 export type SolidKind = (typeof SOLID_KINDS)[number]
 export type PropKind = (typeof PROP_KINDS)[number]
+export type Shape = (typeof SHAPES)[number]
 
 export type Rect = { x: number; y: number; w: number; h: number }
-export type Solid = Rect & { kind?: SolidKind }
+export type Solid = Rect & { kind?: SolidKind; shape?: Shape; spin?: number }
 export type Prop = { kind: PropKind; x: number; y: number; flip?: boolean }
-export type CannonSpot = { x: number; y: number; team: Team }
+export type CannonSpot = { x: number; y: number; team: Team; hang?: boolean }
 export type Base = { pad: Rect }
 export type GameMap = {
   mode: Mode
   biome: Biome
+  gravity?: number
   width: number
   height: number
   solids: Solid[]
@@ -45,6 +52,7 @@ export function parseMap(raw: unknown, label: string): GameMap {
   return {
     mode: oneOf(raw.mode ?? 'pve', MODES, at('mode')),
     biome: oneOf(raw.biome ?? 'desert', BIOME_NAMES, at('biome')),
+    ...(raw.gravity !== undefined && { gravity: positive(raw.gravity, at('gravity')) }),
     width: positive(raw.width, at('width')),
     height: positive(raw.height, at('height')),
     solids: list(raw.solids, at('solids')).map((s, i) => solid(s, at(`solids[${i}]`))),
@@ -66,8 +74,13 @@ function field(value: unknown, key: string): unknown {
 function solid(raw: unknown, path: string): Solid {
   const r = rect(raw, path)
   if (field(raw, 'water') !== undefined) throw new Error(`${path}.water is no longer a field, use "kind": "water"`)
-  const kind = field(raw, 'kind')
-  return kind === undefined ? r : { ...r, kind: oneOf(kind, SOLID_KINDS, `${path}.kind`) }
+  const [kind, shape, spin] = [field(raw, 'kind'), field(raw, 'shape'), field(raw, 'spin')]
+  return {
+    ...r,
+    ...(kind !== undefined && { kind: oneOf(kind, SOLID_KINDS, `${path}.kind`) }),
+    ...(shape !== undefined && { shape: oneOf(shape, SHAPES, `${path}.shape`) }),
+    ...(spin !== undefined && { spin: finite(spin, `${path}.spin`) }),
+  }
 }
 
 function pad(raw: unknown, path: string): Rect {
@@ -77,7 +90,12 @@ function pad(raw: unknown, path: string): Rect {
 }
 
 function cannon(raw: unknown, path: string): CannonSpot {
-  return { x: finite(field(raw, 'x'), `${path}.x`), y: finite(field(raw, 'y'), `${path}.y`), team: oneOf(field(raw, 'team'), TEAMS, `${path}.team`) }
+  return {
+    x: finite(field(raw, 'x'), `${path}.x`),
+    y: finite(field(raw, 'y'), `${path}.y`),
+    team: oneOf(field(raw, 'team'), TEAMS, `${path}.team`),
+    ...(field(raw, 'hang') === true && { hang: true }),
+  }
 }
 
 function prop(raw: unknown, path: string): Prop {

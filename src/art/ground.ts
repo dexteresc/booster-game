@@ -1,17 +1,23 @@
 import { COLOR } from './theme.ts'
-import { TAU } from './brush.ts'
+import { TAU, hash } from './brush.ts'
+import { drawLitAsteroid } from './asteroid.ts'
 import type { GroundColors, Palette } from './theme.ts'
 import type { Biome, Rect } from '../maps/parse.ts'
+import type { PlacedSolid } from '../sim/geometry.ts'
 
 // The natural ground of each biome: what a 'rock' solid looks like there.
 
 type DrawGround = (ctx: CanvasRenderingContext2D, s: Rect, colors: GroundColors) => void
+type DrawShapedGround = (ctx: CanvasRenderingContext2D, s: PlacedSolid, colors: GroundColors) => void
 
 export const GROUND_ART: Record<Biome, DrawGround> = {
   desert: drawSandstone,
   jungle: drawMossStone,
   nautic: drawBasalt,
+  belt: drawAsteroidSlab,
 }
+// Ground that draws its round, lumpy or spinning rocks whole: outline, light and turn.
+export const SHAPED_GROUND_ART: Partial<Record<Biome, DrawShapedGround>> = { belt: drawLitAsteroid }
 
 const STRATA = 17
 const CRACK = 50 // moss stone: one crack per this many units of width
@@ -84,6 +90,23 @@ function drawBasalt(ctx: CanvasRenderingContext2D, solid: Rect, { body, lip }: G
   }
   ctx.fillStyle = COLOR.strata
   ctx.fillRect(solid.x + solid.w - 4, solid.y, 4, solid.h)
+  ctx.fillStyle = lip
+  ctx.fillRect(solid.x, solid.y, solid.w, 2)
+}
+
+// Square asteroid rock: speckled dust under a lit lip.
+function drawAsteroidSlab(ctx: CanvasRenderingContext2D, solid: Rect, { body, lip }: GroundColors) {
+  vertical(ctx, solid, body, Math.max(16, solid.h * 0.4))
+  const seed = Math.round(solid.x) * 7919 + Math.round(solid.y)
+  const specks = Math.min(500, (solid.w * solid.h) / 220)
+  for (const [shade, color] of [[0, COLOR.strata], [1, COLOR.seamLit]] as const) {
+    ctx.fillStyle = color
+    ctx.beginPath()
+    for (let i = shade; i < specks; i += 2) {
+      ctx.rect(solid.x + hash(seed, i, 1) * solid.w, solid.y + hash(seed, i, 2) * solid.h, 1.5, 1.5)
+    }
+    ctx.fill()
+  }
   ctx.fillStyle = lip
   ctx.fillRect(solid.x, solid.y, solid.w, 2)
 }

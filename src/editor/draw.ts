@@ -1,7 +1,7 @@
 import { flagHome, hasFlag } from '../sim/game.ts'
 import { TEAMS } from '../maps/parse.ts'
 import type { Biome, CannonSpot, GameMap, Rect } from '../maps/parse.ts'
-import { cannonPedestal } from '../sim/cannon.ts'
+import { cannonPedestal, restingAim } from '../sim/cannon.ts'
 import { COLOR, SKIES } from '../art/theme.ts'
 import { fitCanvas } from '../art/brush.ts'
 import { drawFlag, drawPad } from '../art/scenery.ts'
@@ -102,7 +102,7 @@ function standing(bounds: Rect, biome: Biome, draw: (ctx: Ctx, foot: Point) => v
 
 function drawStandingCannon(ctx: Ctx, cannon: CannonSpot, biome: Biome, clock: number): void {
   drawRock(ctx, cannonPedestal(cannon), SKY, biome)
-  drawCannon(ctx, { ...cannon, aim: -Math.PI / 2 }, false, clock)
+  drawCannon(ctx, { ...cannon, aim: restingAim(cannon) }, false, clock)
 }
 
 function drawSky(ctx: Ctx, { width, height }: Pick<GameMap, 'width' | 'height'>, gradientHeight: number): void {
