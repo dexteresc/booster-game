@@ -114,6 +114,12 @@ export function flagHome(base: Base): { x: number; y: number } {
   return { x: base.pad.x + base.pad.w / 2, y: base.pad.y }
 }
 
+// Foot of the flag pole: on its carrier, else at home.
+export function flagSpot(game: GameView, team: Team, flagCarrier: string | null): { x: number; y: number } {
+  const carrier = game.rockets.find((r) => r.id === flagCarrier)
+  return carrier ? { x: carrier.x, y: carrier.y - 20 } : flagHome(game.map.bases[team])
+}
+
 // inputs: by player id; a player without one has no engines on.
 export function step(game: Game, inputs: Record<string, Input>, config: Config): void {
   const dt = 1 / config.tickRate

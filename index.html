@@ -167,6 +167,15 @@
       .menu-appearance {
         margin-left: 6px;
       }
+      .menu-option {
+        font-size: 13px;
+        opacity: 0.85;
+      }
+      .panel input[type='checkbox'] {
+        width: auto;
+        margin: 0 6px 0 0;
+        vertical-align: middle;
+      }
       dialog.panel {
         padding: 20px;
       }
@@ -306,6 +315,7 @@
         Your name <input id="player-name" maxlength="16" autocomplete="nickname" placeholder="Pilot" />
         <button type="button" class="menu-appearance">🎨 Appearance</button>
       </label>
+      <label class="menu-option"><input type="checkbox" id="glow" />Glow effects: bloom and vignette. Pretty, costs frame rate</label>
       <div class="menu-modes">
         <button data-mode="pve">
           <canvas></canvas>

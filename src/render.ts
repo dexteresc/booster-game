@@ -1,15 +1,14 @@
 import type { Config } from './config.ts'
 import type { GameEvent, GameView, ShownRocket } from './sim/game.ts'
-import type { Rect, Team } from './maps/parse.ts'
 import type { Scenery } from './art/scenery.ts'
 import type { Explosion } from './art/effects.ts'
-import type { PlacedSolid } from './sim/geometry.ts'
 import { context2d } from './dom.ts'
-import { flagHome, otherTeam, teamEntries } from './sim/game.ts'
+import { flagHome, flagSpot, otherTeam, teamEntries } from './sim/game.ts'
 import { COLOR, FONT, TEAM } from './art/theme.ts'
-import { clamp, fitCanvas, turnedAbout } from './art/brush.ts'
+import { clamp, fitCanvas } from './art/brush.ts'
 import { createScenery, drawFlag, drawFlagPin, drawPad, randomWeather } from './art/scenery.ts'
-import { drawSolid, outlinePath } from './art/solids.ts'
+import { drawSolid } from './art/solids.ts'
+import { drawMinimap } from './art/minimap.ts'
 import { drawProp } from './art/props/index.ts'
 import { drawCannon, drawLaser, drawRocket } from './art/sprites.ts'
 import { createEffects } from './art/effects.ts'
@@ -19,10 +18,6 @@ import { createTrails } from './art/trail.ts'
 const MUZZLE_FLASH_SECONDS = 0.08 // after a shot
 const SHAKE = { strength: 16, reach: 900, decay: 7 } // explosions shake the camera: world units, distance, 1/s
 const OBJECTIVE_MARGIN = 48 // CSS pixels from the screen edge to the pin's center: keeps its point on screen
-const MINIMAP_SIZE = 240 // CSS pixels along the map's longest edge, less on small screens
-const MINIMAP_MARGIN = 12
-const SCORES_BOTTOM = 56 // CSS pixels: narrow screens put the minimap under the scores
-const WIDE_SCREEN = 900 // CSS pixels: the minimap fits beside the scores from here up
 
 type Point = { x: number; y: number }
 
@@ -37,6 +32,7 @@ type View = {
   sceneryFor: GameView | null // the game it was laid out for
   banner: { text: string; until: number } | null
   clock: number
+  fps: number // smoothed, for the corner readout
   cam: Point | null // eased camera position, before clamping to the map
 }
 
@@ -59,7 +55,10 @@ type Frame = {
 
 // Render-only state (camera, particles, banners) lives here, never in the sim.
 // What things look like lives in src/art/; this file decides what goes where.
-export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
+// Player options that only change how things look. Mutated in place from the menu.
+export type Settings = { glow: boolean } // bloom and vignette: pretty, but costs frame rate
+
+export function createRenderer(canvas: HTMLCanvasElement, config: Config, settings: Settings) {
   const ctx = context2d(canvas)
   const view: View = {
     touch: matchMedia('(pointer: coarse)').matches,
@@ -71,11 +70,13 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
     sceneryFor: null,
     banner: null,
     clock: 0,
+    fps: 0,
     cam: null,
   }
 
   return function draw(game: GameView, localId: string, events: GameEvent[], dt: number): void {
     view.clock += dt
+    if (dt > 0) view.fps += (1 / dt - view.fps) * 0.05
     const { dpr, w, h } = fitCanvas(canvas)
     const me = game.rockets.find((r) => r.id === localId)
     applyEvents(view, events, me)
@@ -93,7 +94,7 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
     }
     const frame = { ...layout, cam: followCamera(view, layout) }
     drawWorld(frame, view)
-    view.post(ctx, w, h, scenery.sky.bloom)
+    if (settings.glow) view.post(ctx, w, h, scenery.sky.bloom)
     drawHud(frame, view)
   }
 }
@@ -170,17 +171,11 @@ function drawFlags(ctx: CanvasRenderingContext2D, game: GameView, clock: number)
   }
 }
 
-// Foot of the flag pole: on its carrier, else at home.
-function flagSpot(game: GameView, team: Team, flagCarrier: string | null): Point {
-  const carrier = game.rockets.find((r) => r.id === flagCarrier)
-  return carrier ? { x: carrier.x, y: carrier.y - 20 } : flagHome(game.map.bases[team])
-}
-
 function drawHud(frame: Frame, view: View) {
   const { ctx, dpr } = frame
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   if (view.touch) drawTouchZones(frame)
-  drawMinimap(frame)
+  drawMinimap(ctx, frame.game, frame.me, frame)
   if (frame.me.alive) drawObjective(frame, view.clock) // over the minimap: the pin can end up in its corner
   ctx.textAlign = 'center'
   drawNameBadges(frame)
@@ -190,6 +185,7 @@ function drawHud(frame: Frame, view: View) {
   const message = hudMessage(frame, view)
   if (message) drawMessage(frame, message)
   ctx.letterSpacing = '0px'
+  drawFps(frame, view.fps)
 }
 
 function drawTouchZones({ ctx, me, cw, ch }: Frame) {
@@ -210,72 +206,6 @@ function drawObjective({ ctx, game, me, cam, scale, dpr, cw, ch }: Frame, clock:
   const x = clamp(at.x, margin, cw - margin)
   const y = clamp(at.y, margin, ch - margin)
   drawFlagPin(ctx, { x, y, angle: Math.atan2(at.y - y, at.x - x) }, goalTeam, clock)
-}
-
-// The whole map in a corner: terrain, pads, flags and rockets.
-function drawMinimap(frame: Frame) {
-  const { ctx, game, cw, ch } = frame
-  const { map } = game
-  const zoom = Math.min(MINIMAP_SIZE, Math.min(cw, ch) * 0.4) / Math.max(map.width, map.height)
-  const left = MINIMAP_MARGIN
-  const top = cw >= WIDE_SCREEN ? MINIMAP_MARGIN : SCORES_BOTTOM
-  const toMinimap = ({ x, y }: Point) => ({ x: left + x * zoom, y: top + y * zoom })
-  const fillRect = (r: Rect, color: string) => {
-    const at = toMinimap(r)
-    ctx.fillStyle = color
-    ctx.fillRect(at.x, at.y, r.w * zoom, r.h * zoom)
-  }
-
-  ctx.save()
-  ctx.beginPath()
-  ctx.roundRect(left, top, map.width * zoom, map.height * zoom, 4)
-  ctx.fillStyle = COLOR.minimapBack
-  ctx.fill()
-  ctx.clip() // solids and rockets can reach past the map's edge
-  drawMinimapSolids(ctx, map.solids, { x: left, y: top }, zoom)
-  for (const [team, { pad }] of teamEntries(map.bases)) fillRect(pad, TEAM[team].accent)
-  drawMinimapMarkers(frame, toMinimap)
-  ctx.restore()
-}
-
-// In their shapes, turned as far as they've spun.
-function drawMinimapSolids(ctx: CanvasRenderingContext2D, solids: PlacedSolid[], corner: Point, zoom: number) {
-  ctx.save()
-  ctx.translate(corner.x, corner.y)
-  ctx.scale(zoom, zoom)
-  for (const s of solids) {
-    ctx.fillStyle = s.kind === 'water' ? COLOR.teal : COLOR.minimapSolid
-    turnedAbout(ctx, s, s.angle ?? 0, () => ctx.fill(outlinePath(s)))
-  }
-  ctx.restore()
-}
-
-function drawMinimapMarkers({ ctx, game, me }: Frame, toMinimap: (p: Point) => Point) {
-  for (const [team, t] of teamEntries(game.teams)) {
-    if (t.flag) drawMinimapFlag(ctx, toMinimap(flagSpot(game, team, t.flagCarrier)), TEAM[team].accent)
-  }
-  for (const r of game.rockets) {
-    if (r.alive && r !== me) drawMinimapDot(ctx, toMinimap(r), 2.5, r.team === me.team ? COLOR.ally : COLOR.enemy)
-  }
-  if (me.alive) drawMinimapDot(ctx, toMinimap(me), 3.5, COLOR.meOutline) // last: never hidden
-}
-
-function drawMinimapFlag(ctx: CanvasRenderingContext2D, foot: Point, color: string) {
-  ctx.fillStyle = COLOR.meOutline
-  ctx.fillRect(foot.x - 0.5, foot.y - 12, 1, 12)
-  ctx.fillStyle = color
-  ctx.beginPath()
-  ctx.moveTo(foot.x + 0.5, foot.y - 12)
-  ctx.lineTo(foot.x + 8, foot.y - 9)
-  ctx.lineTo(foot.x + 0.5, foot.y - 6)
-  ctx.fill()
-}
-
-function drawMinimapDot(ctx: CanvasRenderingContext2D, at: Point, radius: number, color: string) {
-  ctx.fillStyle = color
-  ctx.beginPath()
-  ctx.arc(at.x, at.y, radius, 0, Math.PI * 2)
-  ctx.fill()
 }
 
 // Other players' names above their rockets: blue = your team, red = the other team.
@@ -332,4 +262,13 @@ function drawMessage({ ctx, me, cw, ch }: Frame, message: string) {
   ctx.shadowBlur = 16
   ctx.fillText(message, cw / 2, ch * 0.3)
   ctx.shadowBlur = 0
+}
+
+// Bottom right corner, for checking performance while playing.
+function drawFps({ ctx, cw, ch }: Frame, fps: number) {
+  ctx.font = `600 12px ${FONT}`
+  ctx.textAlign = 'right'
+  ctx.textBaseline = 'bottom'
+  ctx.fillStyle = fps < 50 ? COLOR.enemy : COLOR.textDim
+  ctx.fillText(`${fps.toFixed(0)} FPS`, cw - 10, ch - 8)
 }
