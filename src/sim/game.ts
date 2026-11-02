@@ -1,9 +1,10 @@
 import type { Config } from '../config.ts'
 import type { Base, GameMap, Mode, Rect, Team } from '../maps/parse.ts'
 import type { Bullet, Cannon } from './cannon.ts'
+import type { PlacedSolid } from './geometry.ts'
 import type { Input, Rocket } from './rocket.ts'
 import { FOOT_Y, NO_INPUT, SLOT_SPACING, spawnState, stepRocket } from './rocket.ts'
-import { cannonPedestal, stepBullets, stepCannons } from './cannon.ts'
+import { cannonPedestal, restingAim, stepBullets, stepCannons } from './cannon.ts'
 
 // Pure simulation: no DOM, no randomness, fixed timestep. Same inputs → same
 // state, so it can run unchanged on a server or in lockstep between peers.
@@ -25,7 +26,7 @@ export type Game = {
   winner: Team | null
   wonAt: number | null
   events: GameEvent[] // this tick only
-  map: GameMap // solids include pads and cannon pedestals
+  map: Omit<GameMap, 'solids'> & { solids: PlacedSolid[] } // solids include pads and cannon pedestals
   teams: Record<Team, TeamState>
   rockets: Rocket[]
   cannons: Cannon[]
@@ -49,16 +50,17 @@ export function hasFlag(mode: Mode, team: Team): boolean {
 // Teams come from map.bases.
 export function createGame(map: GameMap, players: NewPlayer[], mode: Mode = 'pve'): Game {
   const pads = Object.values(map.bases).map((b) => b.pad)
+  const pedestals = map.cannons.map(cannonPedestal)
   const game: Game = {
     mode,
     time: 0,
     winner: null,
     wonAt: null,
     events: [],
-    map: { ...map, solids: [...map.solids, ...pads, ...map.cannons.map(cannonPedestal)] },
+    map: { ...map, solids: [...map.solids.map((s) => (s.spin ? { ...s, angle: 0 } : s)), ...pads, ...pedestals] },
     teams: teamRecord(map.bases, (team) => ({ score: 0, flagCarrier: null, flag: hasFlag(mode, team) })),
     rockets: [],
-    cannons: map.cannons.map((c) => ({ ...c, aim: -Math.PI / 2, cooldown: 0 })),
+    cannons: map.cannons.map((c) => ({ ...c, aim: restingAim(c), cooldown: 0 })),
     bullets: [],
   }
   for (const p of players) addPlayer(game, p)
@@ -99,6 +101,13 @@ export function removePlayer(game: Game, id: string): void {
   game.rockets = game.rockets.filter((r) => r.id !== id)
 }
 
+// Spinning solids as they stand at game.time. Joiners call this too: they never step.
+export function turnSolids(game: Pick<Game, 'map' | 'time'>): void {
+  for (const s of game.map.solids) {
+    if (s.spin) s.angle = s.spin * game.time
+  }
+}
+
 // Foot of the flag pole when the flag is home.
 export function flagHome(base: Base): { x: number; y: number } {
   return { x: base.pad.x + base.pad.w / 2, y: base.pad.y }
@@ -109,6 +118,7 @@ export function step(game: Game, inputs: Record<string, Input>, config: Config):
   const dt = 1 / config.tickRate
   game.time += dt
   game.events = []
+  turnSolids(game)
 
   for (const rocket of game.rockets) {
     if (!rocket.alive) {

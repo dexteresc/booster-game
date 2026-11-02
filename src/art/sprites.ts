@@ -12,9 +12,10 @@ import type { ShownBullet, ShownRocket } from '../sim/game.ts'
 // Ogive hull; roughly the hull collision points in sim/rocket.ts.
 const BODY = new Path2D('M0 -26 C5 -22 8 -14 8 -6 L8 6 Q8 9 5 9 L-5 9 Q-8 9 -8 6 L-8 -6 C-8 -14 -5 -22 0 -26 Z')
 const LASER_LENGTH = 24
+export const NOZZLE_Y = 16 // engine exit, below the rocket's center
 
 type DrawnRocket = Pick<ShownRocket, 'x' | 'y' | 'team' | 'angle' | 'input'>
-type DrawnCannon = Pick<Cannon, 'x' | 'y' | 'team' | 'aim'>
+type DrawnCannon = Pick<Cannon, 'x' | 'y' | 'team' | 'aim' | 'hang'>
 
 // isMe: outline the local player's rocket so it stands out in multiplayer.
 export function drawRocket(ctx: CanvasRenderingContext2D, rocket: DrawnRocket, engineOffset: number, isMe = false) {
@@ -24,8 +25,8 @@ export function drawRocket(ctx: CanvasRenderingContext2D, rocket: DrawnRocket, e
   ctx.rotate(rocket.angle)
 
   additive(ctx, () => {
-    if (rocket.input.left) drawPlume(ctx, -engineOffset, 16)
-    if (rocket.input.right) drawPlume(ctx, engineOffset, 16)
+    if (rocket.input.left) drawPlume(ctx, -engineOffset, NOZZLE_Y)
+    if (rocket.input.right) drawPlume(ctx, engineOffset, NOZZLE_Y)
   })
   drawLegs(ctx, colors.accent)
 
@@ -157,10 +158,23 @@ function drawPlume(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.quadraticCurveTo(x, y + len * 2, x + 4.5, y)
   ctx.fill()
   glowDot(ctx, x, y + 2, { radius: 10, color: COLOR.flame[1], alpha: 0.4 })
+  glowDot(ctx, x, y + 14, { radius: 70, color: COLOR.flame[1], alpha: 0.16 }) // lights up whatever is near
 }
 
-// Ray-gun turret. firing: show a muzzle flash this frame.
+// Ray-gun turret. firing: show a muzzle flash this frame. A hanging one is the upright one mirrored about y.
 export function drawCannon(ctx: CanvasRenderingContext2D, cannon: DrawnCannon, firing: boolean, clock: number) {
+  if (!cannon.hang) {
+    drawUprightCannon(ctx, cannon, firing, clock)
+    return
+  }
+  ctx.save()
+  ctx.translate(0, cannon.y * 2)
+  ctx.scale(1, -1)
+  drawUprightCannon(ctx, { ...cannon, hang: false, aim: -cannon.aim }, firing, clock)
+  ctx.restore()
+}
+
+function drawUprightCannon(ctx: CanvasRenderingContext2D, cannon: DrawnCannon, firing: boolean, clock: number) {
   const { accent, laser } = TEAM[cannon.team]
   const p = cannonPedestal(cannon)
   ctx.fillStyle = shaded(ctx, p.x, p.x + p.w, COLOR.gunmetal)
@@ -170,6 +184,7 @@ export function drawCannon(ctx: CanvasRenderingContext2D, cannon: DrawnCannon, f
   ctx.fillStyle = chrome(ctx, p.x, p.x + p.w)
   ctx.fillRect(p.x, p.y, p.w, 1.5)
 
+  additive(ctx, () => glowDot(ctx, cannon.x, cannon.y - PIVOT_HEIGHT, { radius: 55, color: accent, alpha: 0.14 }))
   drawBarrel(ctx, cannon, laser, firing)
   drawDome(ctx, cannon, accent)
   drawOrbit(ctx, cannon, accent, clock)

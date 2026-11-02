@@ -2,17 +2,21 @@ import type { Config } from './config.ts'
 import type { GameEvent, GameView, ShownRocket } from './sim/game.ts'
 import type { Rect, Team } from './maps/parse.ts'
 import type { Scenery } from './art/scenery.ts'
+import type { Explosion } from './art/effects.ts'
+import type { PlacedSolid } from './sim/geometry.ts'
 import { context2d } from './dom.ts'
 import { flagHome, otherTeam, teamEntries } from './sim/game.ts'
 import { COLOR, FONT, TEAM } from './art/theme.ts'
-import { fitCanvas } from './art/brush.ts'
+import { clamp, fitCanvas, turnedAbout } from './art/brush.ts'
 import { createScenery, drawFlag, drawFlagPin, drawPad, randomWeather } from './art/scenery.ts'
-import { drawSolid } from './art/solids.ts'
+import { drawSolid, outlinePath } from './art/solids.ts'
 import { drawProp } from './art/props/index.ts'
 import { drawCannon, drawLaser, drawRocket } from './art/sprites.ts'
 import { createEffects } from './art/effects.ts'
+import { createPost } from './art/post.ts'
 
 const MUZZLE_FLASH_SECONDS = 0.08 // after a shot
+const SHAKE = { strength: 16, reach: 900, decay: 7 } // explosions shake the camera: world units, distance, 1/s
 const OBJECTIVE_MARGIN = 48 // CSS pixels from the screen edge to the pin's center: keeps its point on screen
 const MINIMAP_SIZE = 240 // CSS pixels along the map's longest edge, less on small screens
 const MINIMAP_MARGIN = 12
@@ -25,6 +29,8 @@ type Point = { x: number; y: number }
 type View = {
   touch: boolean
   effects: ReturnType<typeof createEffects>
+  post: ReturnType<typeof createPost>
+  shake: number // world units the camera jolts by, easing off
   scenery: Scenery | null
   sceneryFor: GameView | null // the game it was laid out for
   banner: { text: string; until: number } | null
@@ -56,6 +62,8 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
   const view: View = {
     touch: matchMedia('(pointer: coarse)').matches,
     effects: createEffects(),
+    post: createPost(),
+    shake: 0,
     scenery: null,
     sceneryFor: null,
     banner: null,
@@ -66,12 +74,12 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
   return function draw(game: GameView, localId: string, events: GameEvent[], dt: number): void {
     view.clock += dt
     const { dpr, w, h } = fitCanvas(canvas)
-    applyEvents(view, events)
+    const me = game.rockets.find((r) => r.id === localId)
+    applyEvents(view, events, me)
     const scenery = sceneryFor(view, game)
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.fillStyle = COLOR.void
     ctx.fillRect(0, 0, w, h)
-    const me = game.rockets.find((r) => r.id === localId)
     if (!me) return // Joining: no rocket until the host's first snapshot.
 
     const layout = {
@@ -82,6 +90,7 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config) {
     }
     const frame = { ...layout, cam: followCamera(view, layout) }
     drawWorld(frame, view)
+    view.post(ctx, w, h, scenery.sky.bloom)
     drawHud(frame, view)
   }
 }
@@ -95,11 +104,19 @@ function sceneryFor(view: View, game: GameView): Scenery {
   return scenery
 }
 
-function applyEvents(view: View, events: GameEvent[]) {
+function applyEvents(view: View, events: GameEvent[], me: ShownRocket | undefined) {
   for (const e of events) {
-    if (e.type === 'explode') view.effects.explode(e)
+    if (e.type === 'explode') explode(view, e, me)
     if (e.type === 'capture') view.banner = { text: `${TEAM[e.team].label} CAPTURED THE FLAG`, until: view.clock + 2 }
   }
+}
+
+// Shakes the camera, harder the closer it went off.
+function explode(view: View, at: Explosion, me: ShownRocket | undefined) {
+  view.effects.explode(at)
+  if (!me) return
+  const near = Math.max(0, 1 - Math.hypot(at.x - me.x, at.y - me.y) / SHAKE.reach)
+  view.shake = Math.max(view.shake, SHAKE.strength * near)
 }
 
 // Eases view.cam toward the local rocket; returns the center clamped to the map.
@@ -109,9 +126,11 @@ function followCamera(view: View, { me, game, w, h, scale, dt }: Omit<Frame, 'ca
   const follow = Math.min(1, dt * 6)
   cam.x += (me.x - cam.x) * follow
   cam.y += (me.y - cam.y) * follow
+  view.shake *= Math.exp(-SHAKE.decay * dt)
+  const jolt = () => (Math.random() * 2 - 1) * view.shake
   return {
-    x: clamp(cam.x, w / scale / 2, game.map.width - w / scale / 2),
-    y: clamp(cam.y, h / scale / 2, game.map.height - h / scale / 2),
+    x: clamp(cam.x, w / scale / 2, game.map.width - w / scale / 2) + jolt(),
+    y: clamp(cam.y, h / scale / 2, game.map.height - h / scale / 2) + jolt(),
   }
 }
 
@@ -128,9 +147,13 @@ function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Fra
   }
   for (const b of game.bullets) drawLaser(ctx, b)
   for (const r of game.rockets) {
+    if (r.alive) effects.exhaust(r, config.rocket.engineOffset, dt)
+  }
+  effects.draw(ctx, dt) // under the rockets, so exhaust trails behind them
+  for (const r of game.rockets) {
     if (r.alive) drawRocket(ctx, r, config.rocket.engineOffset, r === me)
   }
-  effects.draw(ctx, dt)
+  scenery.foreground(ctx, cam.x, cam.y, clock)
   scenery.water(ctx, cam.x, clock) // last: reflects everything above it
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   scenery.rain(ctx, cam.x * scale, cam.y * scale, clock)
@@ -205,9 +228,21 @@ function drawMinimap(frame: Frame) {
   ctx.fillStyle = COLOR.minimapBack
   ctx.fill()
   ctx.clip() // solids and rockets can reach past the map's edge
-  for (const s of map.solids) fillRect(s, s.kind === 'water' ? COLOR.teal : COLOR.minimapSolid)
+  drawMinimapSolids(ctx, map.solids, { x: left, y: top }, zoom)
   for (const [team, { pad }] of teamEntries(map.bases)) fillRect(pad, TEAM[team].accent)
   drawMinimapMarkers(frame, toMinimap)
+  ctx.restore()
+}
+
+// In their shapes, turned as far as they've spun.
+function drawMinimapSolids(ctx: CanvasRenderingContext2D, solids: PlacedSolid[], corner: Point, zoom: number) {
+  ctx.save()
+  ctx.translate(corner.x, corner.y)
+  ctx.scale(zoom, zoom)
+  for (const s of solids) {
+    ctx.fillStyle = s.kind === 'water' ? COLOR.teal : COLOR.minimapSolid
+    turnedAbout(ctx, s, s.angle ?? 0, () => ctx.fill(outlinePath(s)))
+  }
   ctx.restore()
 }
 
@@ -293,8 +328,4 @@ function drawMessage({ ctx, me, cw, ch }: Frame, message: string) {
   ctx.shadowBlur = 16
   ctx.fillText(message, cw / 2, ch * 0.3)
   ctx.shadowBlur = 0
-}
-
-function clamp(value: number, lo: number, hi: number) {
-  return Math.min(Math.max(value, lo), hi)
 }

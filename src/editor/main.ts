@@ -2,7 +2,19 @@ import { parseMap } from '../maps/parse.ts'
 import type { Biome, GameMap, Mode } from '../maps/parse.ts'
 import { BIOMES } from '../art/theme.ts'
 import { byId, find } from '../dom.ts'
-import { createEditor, flipSelected, isDirty, isRect, mirrorLeftHalf, newMap, remember, removeSelected, undo } from './model.ts'
+import {
+  createEditor,
+  flipSelected,
+  isDirty,
+  isFlippable,
+  isRect,
+  mirrorLeftHalf,
+  newMap,
+  remember,
+  removeSelected,
+  shapeSelected,
+  undo,
+} from './model.ts'
 import type { Item, Tool } from './model.ts'
 import { attachPointer } from './pointer.ts'
 import { drawEditor } from './draw.ts'
@@ -21,9 +33,11 @@ const ui = {
   biome: byId<HTMLSelectElement>('biome'),
   width: byId<HTMLInputElement>('width'),
   height: byId<HTMLInputElement>('height'),
+  gravity: byId<HTMLInputElement>('gravity'),
   palette: byId<HTMLDivElement>('palette'),
   tools: () => [...document.querySelectorAll<HTMLButtonElement>('[data-tool]')],
   flip: byId<HTMLButtonElement>('flip'),
+  shape: byId<HTMLButtonElement>('shape'),
   remove: byId<HTMLButtonElement>('delete'),
   undo: byId<HTMLButtonElement>('undo'),
   mirror: byId<HTMLButtonElement>('mirror'),
@@ -94,14 +108,16 @@ function bindPanel(): void {
   }
   ui.mode.onchange = () => edit(() => setMode(ui.mode.value as Mode))
   ui.biome.onchange = () => edit(() => setBiome(ui.biome.value as Biome))
-  ui.width.onchange = () => resizeMap('width', ui.width)
-  ui.height.onchange = () => resizeMap('height', ui.height)
+  ui.width.onchange = () => setMapNumber('width', ui.width)
+  ui.height.onchange = () => setMapNumber('height', ui.height)
+  ui.gravity.onchange = () => setMapNumber('gravity', ui.gravity)
   ui.palette.onclick = (e) => {
     const button = e.target instanceof Element && e.target.closest<HTMLElement>('[data-tool]')
     if (button) setTool(button.dataset.tool as Tool) // palette tiles are only ever built with a Tool
   }
   find<HTMLButtonElement>(document, '[data-tool="select"]').onclick = () => setTool('select')
   ui.flip.onclick = () => edit(() => flipSelected(editor))
+  ui.shape.onclick = () => edit(() => shapeSelected(editor))
   ui.remove.onclick = () => edit(() => removeSelected(editor))
   ui.undo.onclick = () => edit(() => undo(editor))
   ui.mirror.onclick = () => edit(() => mirrorLeftHalf(editor))
@@ -136,6 +152,7 @@ function onPlainKey(e: KeyboardEvent): void {
   const tool = TOOL_KEYS[e.code]
   if (tool) setTool(tool)
   if (e.code === 'KeyF') edit(() => flipSelected(editor))
+  if (e.code === 'KeyO') edit(() => shapeSelected(editor))
   if (e.code === 'Delete' || e.code === 'Backspace') edit(() => removeSelected(editor))
   if (e.code === 'Escape') edit(() => { editor.selected = null })
 }
@@ -161,15 +178,17 @@ function setBiome(biome: Biome): void {
   editor.map.biome = biome
 }
 
-function resizeMap(key: 'width' | 'height', input: HTMLInputElement): void {
+// Gravity 1 is the default, so it's left out of the file.
+function setMapNumber(key: 'width' | 'height' | 'gravity', input: HTMLInputElement): void {
   const value = Number(input.value)
   if (!(value > 0)) {
     showStatus(`Map ${key} must be a positive number, got "${input.value}"`, true)
-    input.value = String(editor.map[key])
+    input.value = String(editor.map[key] ?? 1)
     return
   }
   remember(editor)
-  editor.map[key] = value
+  if (key === 'gravity' && value === 1) delete editor.map.gravity
+  else editor.map[key] = value
   refresh()
 }
 
@@ -207,16 +226,22 @@ function refresh(): void {
   const { map, selected, tool, name, history: undoable } = editor
   if (document.activeElement !== ui.width) ui.width.value = String(map.width)
   if (document.activeElement !== ui.height) ui.height.value = String(map.height)
+  if (document.activeElement !== ui.gravity) ui.gravity.value = String(map.gravity ?? 1)
   ui.mode.value = map.mode
   refreshTools(map.biome, tool)
-  ui.flip.disabled = selected?.kind !== 'prop'
-  ui.remove.disabled = !selected || selected.kind === 'pad'
+  refreshSelectionButtons(selected)
   ui.undo.disabled = !undoable.length
   ui.mirror.disabled = map.mode !== 'pvp'
   ui.play.hidden = !name
   if (name) ui.play.href = `./?map=${encodeURIComponent(name)}`
   document.title = `${isDirty(editor) ? '• ' : ''}${name ?? 'new map'} · Booster map editor`
   refreshInfo()
+}
+
+function refreshSelectionButtons(selected: Item | null): void {
+  ui.flip.disabled = !isFlippable(selected)
+  ui.shape.disabled = selected?.kind !== 'solid'
+  ui.remove.disabled = !selected || selected.kind === 'pad'
 }
 
 // Tool tiles follow the biome; a tool the biome doesn't offer falls back to select.
@@ -239,8 +264,10 @@ function refreshInfo(): void {
 function describe(item: Item): string {
   const { obj } = item
   const size = isRect(item) ? ` ${item.obj.w}×${item.obj.h}` : ''
+  const shape = item.kind === 'solid' && item.obj.shape ? `${item.obj.shape} ` : ''
   const flipped = item.kind === 'prop' && item.obj.flip ? ' (flipped)' : ''
-  return `${itemName(item)}${flipped} at ${obj.x}, ${obj.y}${size}`
+  const hanging = item.kind === 'cannon' && item.obj.hang ? ' (hanging)' : ''
+  return `${shape}${itemName(item)}${flipped}${hanging} at ${obj.x}, ${obj.y}${size}`
 }
 
 function itemName(item: Item): string {

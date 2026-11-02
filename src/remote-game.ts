@@ -2,7 +2,7 @@ import type { GameMap } from './maps/parse.ts'
 import type { GameEvent, GameView, ShownRocket } from './sim/game.ts'
 import type { RosterMessage } from './net.ts'
 import type { Snapshot } from './snapshot.ts'
-import { createGame, teamEntries } from './sim/game.ts'
+import { createGame, teamEntries, turnSolids } from './sim/game.ts'
 import { NO_INPUT } from './sim/rocket.ts'
 import { wrapAngle } from './sim/geometry.ts'
 import { decodeSnapshot } from './snapshot.ts'
@@ -92,6 +92,7 @@ export function blend(game: GameView, from: Snapshot, next: Snapshot | undefined
   const t = to.time > from.time ? Math.min(Math.max((at - from.time) / (to.time - from.time), 0), 1) : 0
   const since = Math.max(0, at - from.time)
   game.time = from.time + since
+  turnSolids(game)
   game.winner = from.winner
   for (const [team, state] of teamEntries(from.teams)) Object.assign(game.teams[team], state)
   for (const rocket of game.rockets) blendRocket(rocket, from.rockets, to.rockets, t)

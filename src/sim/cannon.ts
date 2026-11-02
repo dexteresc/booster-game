@@ -10,9 +10,18 @@ export type Bullet = { x: number; y: number; vx: number; vy: number; team: Team;
 export const BARREL_LENGTH = 20
 export const PIVOT_HEIGHT = 14
 
-// Cannon x,y is the surface point it stands on.
-export function cannonPedestal(cannon: Pick<CannonSpot, 'x' | 'y'>): Rect {
-  return { x: cannon.x - 14, y: cannon.y - 12, w: 28, h: 12 }
+// Cannon x,y is the surface point it stands on, or with `hang` the underside point it hangs from.
+export function cannonPedestal(cannon: Pick<CannonSpot, 'x' | 'y' | 'hang'>): Rect {
+  return { x: cannon.x - 14, y: cannon.hang ? cannon.y : cannon.y - 12, w: 28, h: 12 }
+}
+
+// Straight out from the surface it's on.
+export function restingAim(cannon: Pick<CannonSpot, 'hang'>): number {
+  return cannon.hang ? Math.PI / 2 : -Math.PI / 2
+}
+
+function pivot(cannon: CannonSpot) {
+  return { x: cannon.x, y: cannon.hang ? cannon.y + PIVOT_HEIGHT : cannon.y - PIVOT_HEIGHT }
 }
 
 export function stepCannons(game: Game, config: Config, dt: number): void {
@@ -20,8 +29,7 @@ export function stepCannons(game: Game, config: Config, dt: number): void {
   if (!enabled) return
   for (const cannon of game.cannons) {
     cannon.cooldown -= dt
-    const px = cannon.x
-    const py = cannon.y - PIVOT_HEIGHT
+    const { x: px, y: py } = pivot(cannon)
     const target = nearestEnemy(game.rockets, cannon.team, { x: px, y: py }, range)
     if (!target) continue
 

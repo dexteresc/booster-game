@@ -4,6 +4,7 @@ import type { GameMap, Mode, Solid } from '../src/maps/parse.ts'
 import type { Input } from '../src/sim/rocket.ts'
 import { config as baseConfig } from '../src/config.ts'
 import { addPlayer, createGame, flagHome, maxPlayersPerTeam, removePlayer, step } from '../src/sim/game.ts'
+import { bottomAt, solidAt, topAt } from '../src/sim/geometry.ts'
 
 const flat: GameMap = {
   mode: 'pve',
@@ -43,6 +44,86 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
   const y0 = t.r.y
   run(t, 0.5, BOTH)
   assert(t.r.alive && t.r.y < y0 - 20 && t.r.angle === 0, 'both engines should lift straight up')
+}
+
+// A map's gravity scales the world's: low gravity falls slower.
+{
+  const fall = (map: GameMap) => {
+    const t = setup(map)
+    Object.assign(t.r, { y: 300, landed: false })
+    run(t, 0.5)
+    return t.r.vy
+  }
+  const normal = fall(flat)
+  assert(Math.abs(fall({ ...flat, gravity: 0.4 }) - normal * 0.4) < 1, 'gravity 0.4 should fall at 0.4x the speed')
+}
+
+// Round solids: the top of the ball is a landing spot, its steep flank isn't, and the corners of its rect are empty.
+{
+  const ball: Solid = { x: 900, y: 600, w: 300, h: 200, shape: 'round' }
+  const drop = (x: number) => {
+    const t = setup({ ...flat, solids: [...flat.solids, ball] })
+    Object.assign(t.r, { x, y: 500, landed: false })
+    runUntil(t, () => t.r.landed || !t.r.alive, 3)
+    return t.r
+  }
+  const top = drop(1050)
+  assert(top.alive && top.landed && Math.abs(top.y + 18 - 600) < 2, 'should land on top of the ball')
+  assert(!drop(1195).alive, 'landing on the steep flank should crash')
+  const map = { ...flat, solids: [ball] }
+  assert(!solidAt(map, 905, 610) && solidAt(map, 1050, 700), "the rect's corners are empty, its middle solid")
+}
+
+// Lumpy solids: the outline fills its rect but isn't the ellipse, keeps its shape when moved, its
+// tops are landing spots where they're flat enough, and its undersides are where its outline ends below.
+{
+  const rock: Solid = { x: 900, y: 600, w: 320, h: 220, shape: 'lumpy' }
+  const map = { ...flat, solids: [rock] }
+  const ellipse = (x: number, y: number) => ((x - 1060) / 160) ** 2 + ((y - 710) / 110) ** 2 <= 1
+  const grid: [number, number][] = []
+  for (let x = 902; x < 1220; x += 6) {
+    for (let y = 602; y < 820; y += 6) grid.push([x, y])
+  }
+  assert(grid.some(([x, y]) => Boolean(solidAt(map, x, y)) !== ellipse(x, y)), 'a lumpy rock should not be a plain ellipse')
+  const touches = (points: [number, number][]) => points.some(([x, y]) => solidAt(map, x, y))
+  const along = (f: (t: number) => [number, number]) => Array.from({ length: 160 }, (_, i) => f(i / 159))
+  assert(touches(along((t) => [900 + t * 320, 602])) && touches(along((t) => [900 + t * 320, 818])), 'outline should reach top and bottom')
+  assert(touches(along((t) => [902, 600 + t * 220])) && touches(along((t) => [1218, 600 + t * 220])), 'outline should reach both sides')
+  const moved = { ...map, solids: [{ ...rock, x: 400, y: 100 }] }
+  assert(grid.every(([x, y]) => Boolean(solidAt(map, x, y)) === Boolean(solidAt(moved, x - 500, y - 500))), 'moving a rock should keep its shape')
+
+  const top = (x: number) => {
+    const at = topAt(rock, x)
+    assert(at, `a lumpy rock has a top at x ${x}`)
+    return at
+  }
+  const flattest = Array.from({ length: 61 }, (_, i) => 1000 + i * 2).sort((a, b) => top(a).slope - top(b).slope)[0]
+  const t = setup({ ...flat, solids: [...flat.solids, rock] })
+  Object.assign(t.r, { x: flattest, y: top(flattest).y - 100, landed: false })
+  runUntil(t, () => t.r.landed || !t.r.alive, 3)
+  assert(t.r.alive && t.r.landed, `should land on the lumpy top at x ${flattest}`)
+
+  for (const x of [960, 1060, 1160]) {
+    const bottom = bottomAt(rock, x)
+    assert(bottom !== null && solidAt(map, x, bottom - 1) && !solidAt(map, x, bottom + 1), `underside at x ${x} should be where the rock ends`)
+  }
+}
+
+// Spinning solids turn about their center as game time passes, bullets and hulls meet them where they are
+// now, and the map they came from is left alone. Feet on one crash: they can't be landed on.
+{
+  const bar = { x: 800, y: 580, w: 400, h: 40, spin: Math.PI / 2 } // a quarter turn per second
+  const t = setup({ ...flat, solids: [...flat.solids, bar] })
+  const turning = t.game.map.solids.find((s) => s.spin)
+  assert(solidAt(t.game.map, 1180, 600) && !solidAt(t.game.map, 1000, 760), 'flat at the start')
+  run(t, 1)
+  assert(!solidAt(t.game.map, 1180, 600) && solidAt(t.game.map, 1000, 760), 'upright after a quarter turn')
+  assert(turning && Math.abs((turning.angle ?? 0) - Math.PI / 2) < 0.02 && !('angle' in bar), 'the game turns its own copy')
+
+  const land = setup({ ...flat, solids: [...flat.solids, { ...bar, spin: 0.01 }] })
+  Object.assign(land.r, { x: 1000, y: 540, landed: false })
+  runUntil(land, () => land.r.landed || !land.r.alive, 2)
+  assert(!land.r.alive, 'touching down on a spinning solid should crash')
 }
 
 // Left engine tilts nose right; engines further out spin faster.
@@ -144,6 +225,18 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
   const crash = setup()
   Object.assign(crash.r, { x: 1000, y: 870, angle: Math.PI, landed: false })
   assert(runUntil(crash, () => !crash.r.alive, 1) && crash.game.teams.red.score === 0, 'PvE: crashes are not kills')
+}
+
+// A hanging cannon hangs under its block, starts aimed straight down and shoots a rocket below it.
+{
+  const ceiling = { x: 900, y: 300, w: 200, h: 100 }
+  const map: GameMap = { ...flat, solids: [...flat.solids, ceiling], cannons: [{ x: 1000, y: 400, team: 'red', hang: true }] }
+  const t = setup(map, (c) => { c.cannon.enabled = true })
+  const pedestal = solidAt(t.game.map, 1000, 405)
+  assert(pedestal && t.game.map.solids.includes(pedestal) && pedestal !== ceiling, 'pedestal hangs below the block')
+  assert.equal(t.game.cannons[0].aim, Math.PI / 2, 'hanging cannon rests aimed down')
+  Object.assign(t.r, { x: 1000, y: 900 - 18 })
+  assert(runUntil(t, () => !t.r.alive, 3), 'hanging cannon should hit a rocket below')
 }
 
 // PvE: players have no flag. PvP: both do, and yours must be home to capture.
