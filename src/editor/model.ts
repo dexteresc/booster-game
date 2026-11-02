@@ -2,7 +2,7 @@ import { propBounds } from '../art/props/boxes.ts'
 import { MIN_PAD_WIDTH, PROP_KINDS, SHAPES } from '../maps/parse.ts'
 import type { CannonSpot, GameMap, Prop, PropKind, Rect, Solid, SolidKind } from '../maps/parse.ts'
 import { cannonPedestal } from '../sim/cannon.ts'
-import { bottomAt, solidAt, topAt } from '../sim/geometry.ts'
+import { solidAt, surfaceAt } from '../sim/geometry.ts'
 
 // Editor state and edits on it. No DOM here.
 // An item's obj lives inside editor.map. Solids and pads are rects; cannons and props stand on a surface.
@@ -98,7 +98,7 @@ function turnOver(map: GameMap, cannon: CannonSpot): void {
   if (cannon.hang) delete cannon.hang
   else cannon.hang = true
   if (!block || !map.solids.includes(block)) return
-  cannon.y = (cannon.hang ? bottomAt(block, cannon.x) : topAt(block, cannon.x)?.y) ?? cannon.y
+  cannon.y = surfaceAt(block, cannon.x, cannon.hang ? 1 : -1)?.y ?? cannon.y
 }
 
 // Cycles the selected solid square → round → lumpy → square. Left out of the file when square.
@@ -184,23 +184,17 @@ function addStanding(editor: Editor, item: StandingItem, at: Point): void {
 // the nearest underside above it.
 export function placeOnSurface(map: GameMap, obj: Point & { hang?: boolean }, at: Point): void {
   obj.x = snap(at.x)
-  obj.y = (obj.hang ? undersideAbove(map, obj.x, at.y) : surfaceBelow(map, obj.x, at.y)) ?? snap(at.y)
+  obj.y = surfaceNear(map, obj.x, at.y, obj.hang ? 1 : -1) ?? snap(at.y)
 }
 
-function surfaceBelow(map: GameMap, x: number, y: number): number | null {
-  const tops = [...map.solids, ...Object.values(map.bases).map((b) => b.pad)]
+// side -1: the highest top below y; 1: the lowest underside above it. Pads are only stood on.
+function surfaceNear(map: GameMap, x: number, y: number, side: -1 | 1): number | null {
+  const pads = side < 0 ? Object.values(map.bases).map((b) => b.pad) : []
+  const edges = [...map.solids, ...pads]
     .filter((s) => x >= s.x && x <= s.x + s.w)
-    .map((s) => topAt(s, x)?.y)
-    .filter((top): top is number => top !== undefined && top >= y - SURFACE_REACH)
-  return tops.length ? Math.min(...tops) : null
-}
-
-function undersideAbove(map: GameMap, x: number, y: number): number | null {
-  const bottoms = map.solids
-    .filter((s) => x >= s.x && x <= s.x + s.w)
-    .map((s) => bottomAt(s, x))
-    .filter((bottom): bottom is number => bottom !== null && bottom <= y + SURFACE_REACH)
-  return bottoms.length ? Math.max(...bottoms) : null
+    .map((s) => surfaceAt(s, x, side)?.y)
+    .filter((edge): edge is number => edge !== undefined && (edge - y) * side <= SURFACE_REACH)
+  return edges.length ? side * Math.max(...edges.map((edge) => edge * side)) : null
 }
 
 export function minSize(item: Item): { w: number; h: number } {

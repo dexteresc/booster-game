@@ -4,30 +4,25 @@ import type { Shape } from '../maps/parse.ts'
 // round: an ellipse. lumpy: a wobbly potato with a few crater bites out of its edge, seeded by the rect's
 // size, so moving a rock keeps its shape and the host, the editor and the renderer all build the same one.
 
-export type Outline = {
-  cx: number
-  cy: number
-  sx: number
-  sy: number
-  radius: (angle: number) => number
-  points: [number, number][] // the polygon
-}
-type Curve = Omit<Outline, 'points'>
+type Point = [x: number, y: number]
+type Curve = { cx: number; cy: number; sx: number; sy: number; radius: (angle: number) => number }
+export type Outline = Curve & { points: Point[] } // points: the polygon
 type Bite = { at: number; r: number; out: number; x: number; y: number }
 
 const TAU = Math.PI * 2
 const STEPS = 512 // radius samples around a lumpy outline
 const POINTS = 256 // polygon vertices
 const CACHE_SIZE = 256 // the editor makes a new outline for every size a rock is dragged through
-const cache = new Map<string, Outline>() // `${shape} ${w}x${h}` → outline, least recently used first
+const cache = new Map<string, Outline>() // `${shape} ${w}x${h}` → outline; emptied when full
 
 // Relative to the rect's top-left.
 export function outlineOf(shape: Shape, w: number, h: number): Outline {
   const key = `${shape} ${w}x${h}`
-  const outline = cache.get(key) ?? (shape === 'lumpy' ? lumpy(w, h) : ellipse(w, h))
-  cache.delete(key)
+  const known = cache.get(key)
+  if (known) return known
+  if (cache.size >= CACHE_SIZE) cache.clear()
+  const outline = shape === 'lumpy' ? lumpy(w, h) : ellipse(w, h)
   cache.set(key, outline)
-  if (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value as string)
   return outline
 }
 
@@ -35,7 +30,7 @@ export function outlineOf(shape: Shape, w: number, h: number): Outline {
 export function reach({ cx, cy, sx, sy, radius }: Curve, px: number, py: number): number {
   const a = (px - cx) / sx
   const b = (py - cy) / sy
-  return Math.hypot(a, b) / radius(Math.atan2(b, a))
+  return Math.sqrt(a * a + b * b) / radius(Math.atan2(b, a))
 }
 
 function ellipse(w: number, h: number): Outline {
@@ -44,7 +39,7 @@ function ellipse(w: number, h: number): Outline {
 
 function withPoints(curve: Curve): Outline {
   const { cx, cy, sx, sy, radius } = curve
-  const points = Array.from({ length: POINTS }, (_, i): [number, number] => {
+  const points = Array.from({ length: POINTS }, (_, i): Point => {
     const a = (i / POINTS) * TAU
     return [cx + Math.cos(a) * radius(a) * sx, cy + Math.sin(a) * radius(a) * sy]
   })
@@ -95,7 +90,7 @@ function bitten(angle: number, radius: number, bite: Bite) {
 }
 
 // mulberry32: small, fast, and the same everywhere.
-function seeded(seed: number) {
+export function seeded(seed: number) {
   let state = seed >>> 0
   return () => {
     state = (state + 0x6d2b79f5) | 0

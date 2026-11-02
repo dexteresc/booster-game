@@ -48,14 +48,6 @@ export function clamp(value: number, lo: number, hi: number) {
   return Math.min(Math.max(value, lo), hi)
 }
 
-// Stable 0..1 for integer inputs, for art that must look the same every frame.
-export function hash(seed: number, i: number, j: number) {
-  let h = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(i, 0xc2b2ae35) ^ Math.imul(j, 0x27d4eb2f)
-  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d)
-  h = Math.imul(h ^ (h >>> 12), 0x297a2d39)
-  return ((h ^ (h >>> 15)) >>> 0) / 4294967296
-}
-
 // Draws turned by angle (clockwise) about the rect's center.
 export function turnedAbout(ctx: CanvasRenderingContext2D, { x, y, w, h }: Rect, angle: number, draw: () => void) {
   ctx.save()
@@ -64,21 +56,6 @@ export function turnedAbout(ctx: CanvasRenderingContext2D, { x, y, w, h }: Rect,
   ctx.translate(-x - w / 2, -y - h / 2)
   draw()
   ctx.restore()
-}
-
-// Parallax layer: k = 0 is pinned to the screen, 1 moves with the world, more passes in front of it.
-// offset: camera center minus map center, world units.
-export function parallax(ctx: CanvasRenderingContext2D, k: number, offset: Point, draw: () => void) {
-  ctx.save()
-  ctx.translate(offset.x * (1 - k), offset.y * (1 - k))
-  draw()
-  ctx.restore()
-}
-
-// Assumes the current transform has no rotation.
-export function onScreen(ctx: CanvasRenderingContext2D, { x, y, w, h }: Rect) {
-  const { a, d, e, f } = ctx.getTransform()
-  return a * (x + w) + e > 0 && a * x + e < ctx.canvas.width && d * (y + h) + f > 0 && d * y + f < ctx.canvas.height
 }
 
 // Art is render-only, so Math.random is fine.

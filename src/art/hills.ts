@@ -1,13 +1,13 @@
 import { BIOMES, COLOR } from './theme.ts'
 import { TAU, additive, glowDot, rand } from './brush.ts'
-import { bakeAsteroid } from './asteroid.ts'
+import { bakeRock } from './rocks.ts'
 import type { Point } from './brush.ts'
-import type { HillShape, Palette, Sky } from './theme.ts'
+import type { HillShape, Sky } from './theme.ts'
 import type { Biome, GameMap } from '../maps/parse.ts'
 
 // Distant hills behind the map in four parallax layers, shaped by the biome:
 // butte = flat-topped mesas, canopy = rounded jungle hills, island = low islands with lighthouses,
-// belt = distant asteroids.
+// belt = far-off asteroids.
 // Random layout, generated once per map by layoutHills().
 
 // Far → near. k: parallax (0 pinned to the screen, 1 moves with the world). base: share of map
@@ -18,29 +18,29 @@ const LAYERS = [
   { k: 0.46, base: 0.88, rise: 200, size: 1, lit: 0.4 },
   { k: 0.62, base: 0.92, rise: 150, size: 1.2, lit: 0.6 },
 ]
-type Layer = (typeof LAYERS)[number] & { color: string }
+type Layer = (typeof LAYERS)[number]
 type Beacon = Point & { phase: number; tower?: boolean }
-type Skyline = { path: Path2D; windows: Point[]; beacons: Beacon[] }
 type DistantRock = Point & { w: number; h: number; image: HTMLCanvasElement } // x, y: center
-type RockField = { rocks: DistantRock[] } // sorted by x
+type Skyline = { path: Path2D; windows: Point[]; beacons: Beacon[]; rocks?: DistantRock[] }
+type Look = { sky: Sky; biome: Biome }
 type Hill = { x: number; w: number; top: number; base: number; size: number }
 type HillLayer = ReturnType<typeof layoutHills>[number]
 
-const SHAPES: Record<HillShape, (width: number, layer: Layer) => Skyline | RockField> = { butte, canopy, island, belt }
+const SHAPES: Record<HillShape, (width: number, layer: Layer, look: Look) => Skyline> = { butte, canopy, island, belt }
 
 export function layoutHills(map: Pick<GameMap, 'width' | 'height'>, sky: Sky, biome: Biome) {
   const { hills: shape, tint } = BIOMES[biome] ?? {}
   if (!SHAPES[shape]) throw new Error(`layoutHills: unknown biome "${biome}", expected one of ${Object.keys(BIOMES)}`)
   return LAYERS.map((l, i) => {
     const base = map.height * l.base
-    const layer = { ...l, base, lit: Math.min(1, l.lit * sky.windows), color: sky.mesas[i] }
-    return { ...layer, tint, ...SHAPES[shape](map.width, layer) }
+    const layer = { ...l, base, lit: Math.min(1, l.lit * sky.windows) }
+    return { ...layer, color: sky.mesas[i], tint, ...SHAPES[shape](map.width, layer, { sky, biome }) }
   })
 }
 
 export function drawHills(ctx: CanvasRenderingContext2D, layer: HillLayer, { sky, map }: { sky: Sky; map: Pick<GameMap, 'width'> }, clock: number) {
-  if ('rocks' in layer) {
-    drawRocks(ctx, layer.rocks, layer.k)
+  if (layer.rocks) {
+    drawRocks(ctx, layer)
     return
   }
   ctx.fillStyle = layer.color
@@ -120,34 +120,27 @@ function island(width: number, layer: Layer) {
   return hills
 }
 
-// Far-off asteroids in a band around the layer's base, lit like the near ones but in the layer's dark
-// distance colour, each a scaled copy of one of a few baked rocks. Nothing is filled below them.
-function belt(width: number, { base, rise, size, color }: Layer): RockField {
-  const body: Palette = [color, color, color]
-  const bake = (w: number) => bakeAsteroid(w, Math.round(w * rand(0.65, 1)), body)
-  const small = Array.from({ length: 7 }, () => bake(Math.round(44 * size)))
-  const big = Array.from({ length: 3 }, () => bake(Math.round(132 * size)))
-  const rocks = Array.from({ length: (width + 3000) / (90 * size) }, () => {
+// Ten rocks drawn like the map's, scattered as scaled copies in a band around the base. Nothing below them.
+function belt(width: number, { base, rise, size }: Layer, look: Look): Skyline {
+  const shapes = Array.from({ length: 10 }, (_, i) => rockImage(Math.round((i < 7 ? 44 : 132) * size), look))
+  const rocks: DistantRock[] = []
+  for (let x = -1500; x < width + 1500; x += rand(60, 140) * size) {
     const large = Math.random() < 0.08
-    const images = large ? big : small
-    const image = images[Math.floor(Math.random() * images.length)]
+    const image = shapes[large ? 7 + Math.floor(Math.random() * 3) : Math.floor(Math.random() * 7)]
     const w = rand(8, 44) * size * (large ? 3 : 1)
-    const x = rand(-1500, width + 1500)
-    return { x, y: base - rand(-0.4, 1.8) * rise, w, h: (w * image.height) / image.width, image }
-  })
-  return { rocks: rocks.sort((a, b) => a.x - b.x) }
+    rocks.push({ x, y: base - rand(-0.4, 1.8) * rise, w, h: (w * image.height) / image.width, image })
+  }
+  return { path: new Path2D(), windows: [], beacons: [], rocks }
+}
+
+function rockImage(w: number, { sky, biome }: Look) {
+  return bakeRock(w, Math.round(w * rand(0.65, 1)), sky, biome)
 }
 
 // Faded by distance (k: parallax), so they never read as rocks you can hit.
-function drawRocks(ctx: CanvasRenderingContext2D, rocks: DistantRock[], k: number) {
-  const { a, e } = ctx.getTransform()
-  const left = -e / a
-  const right = (ctx.canvas.width - e) / a
+function drawRocks(ctx: CanvasRenderingContext2D, { rocks = [], k }: HillLayer) {
   ctx.globalAlpha = 0.15 + k * 0.5
-  for (const rock of rocks) {
-    if (rock.x + rock.w / 2 < left || rock.x - rock.w / 2 > right) continue
-    ctx.drawImage(rock.image, rock.x - rock.w / 2, rock.y - rock.h / 2, rock.w, rock.h)
-  }
+  for (const rock of rocks) ctx.drawImage(rock.image, rock.x - rock.w / 2, rock.y - rock.h / 2, rock.w, rock.h)
   ctx.globalAlpha = 1
 }
 

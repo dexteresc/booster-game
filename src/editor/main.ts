@@ -3,17 +3,8 @@ import type { Biome, GameMap, Mode } from '../maps/parse.ts'
 import { BIOMES } from '../art/theme.ts'
 import { byId, find } from '../dom.ts'
 import {
-  createEditor,
-  flipSelected,
-  isDirty,
-  isFlippable,
-  isRect,
-  mirrorLeftHalf,
-  newMap,
-  remember,
-  removeSelected,
-  shapeSelected,
-  undo,
+  createEditor, flipSelected, isDirty, isFlippable, isRect, mirrorLeftHalf,
+  newMap, remember, removeSelected, shapeSelected, undo,
 } from './model.ts'
 import type { Item, Tool } from './model.ts'
 import { attachPointer } from './pointer.ts'

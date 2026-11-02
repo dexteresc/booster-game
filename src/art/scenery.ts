@@ -1,9 +1,8 @@
 import { FLAG_HEIGHT } from '../sim/game.ts'
 import { BIOMES, COLOR, RAIN, SKIES, TEAM } from './theme.ts'
-import { TAU, additive, chrome, glowDot, parallax, rand } from './brush.ts'
+import { TAU, additive, chrome, glowDot, rand } from './brush.ts'
 import { drawSea, layoutSea } from './sea.ts'
 import { drawHills, layoutHills } from './hills.ts'
-import { drawDust, layoutDust } from './dust.ts'
 import { bakeNebula, drawNebula, drawPlanet } from './space.ts'
 import type { Point } from './brush.ts'
 import type { Sky, Time } from './theme.ts'
@@ -42,7 +41,6 @@ export function createScenery(map: GameMap, weather: Weather) {
   const seas = map.solids.filter((s) => s.kind === 'water').map((rect) => layoutSea(rect, map.solids, weather.rain))
   const mirror = document.createElement('canvas')
   const lightning: Lightning = { next: rand(3, 8), at: -Infinity }
-  const dust = layoutDust(map, sky)
 
   return {
     weather,
@@ -51,11 +49,6 @@ export function createScenery(map: GameMap, weather: Weather) {
     // cx, cy: camera center in world units.
     backdrop(ctx: CanvasRenderingContext2D, cx: number, cy: number, clock: number) {
       drawBackdrop(ctx, scene, { x: cx - map.width / 2, y: cy - map.height / 2 }, clock)
-    },
-
-    // In front of everything in the world.
-    foreground(ctx: CanvasRenderingContext2D, cx: number, cy: number, clock: number) {
-      drawDust(ctx, dust, { x: cx - map.width / 2, y: cy - map.height / 2 }, clock)
     },
 
     water(ctx: CanvasRenderingContext2D, cx: number, clock: number) {
@@ -134,6 +127,13 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, scene: Scene, offset: Point
     drawShips(ctx, scene, clock)
   })
   for (const m of scene.hills) parallax(ctx, m.k, offset, () => drawHills(ctx, m, scene, clock))
+}
+
+function parallax(ctx: CanvasRenderingContext2D, k: number, offset: Point, draw: () => void) {
+  ctx.save()
+  ctx.translate(offset.x * (1 - k), offset.y * (1 - k))
+  draw()
+  ctx.restore()
 }
 
 function drawStars(ctx: CanvasRenderingContext2D, { stars, sky, map, starDepth }: Scene, clock: number) {

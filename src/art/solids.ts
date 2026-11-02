@@ -1,9 +1,10 @@
 import { COLOR } from './theme.ts'
 import { TAU, turnedAbout } from './brush.ts'
-import { GROUND_ART, SHAPED_GROUND_ART, vertical } from './ground.ts'
-import { outlineOf } from '../sim/outline.ts'
+import { drawShaped } from './shapes.ts'
+import { drawLitRock } from './rocks.ts'
+import { GROUND_ART, vertical } from './ground.ts'
 import type { Sky } from './theme.ts'
-import type { Biome, Rect, Shape, SolidKind } from '../maps/parse.ts'
+import type { Biome, Rect, SolidKind } from '../maps/parse.ts'
 import type { PlacedSolid } from '../sim/geometry.ts'
 
 // Solids: the rects rockets collide with, drawn by kind. sky: palette from SKIES,
@@ -41,55 +42,10 @@ export function drawSolid(ctx: CanvasRenderingContext2D, solid: PlacedSolid, sky
   if (solid.kind === 'water') return
   const draw = SOLID_ART[solid.kind ?? 'rock']
   if (!draw) throw new Error(`drawSolid: unknown solid kind "${solid.kind}"`)
-  const shapedRock = shapedRockArt(solid, biome)
-  if (shapedRock) shapedRock(ctx, solid, sky.ground[biome])
-  else if (solid.angle) turnedAbout(ctx, solid, solid.angle, () => drawSolid(ctx, { ...solid, angle: 0 }, sky, biome))
+  if (!solid.kind && solid.shape) drawLitRock(ctx, solid, sky, biome)
   else if (solid.shape) drawShaped(ctx, solid, solid.shape, () => draw(ctx, solid, sky, biome))
+  else if (solid.angle) turnedAbout(ctx, solid, solid.angle, () => draw(ctx, solid, sky, biome))
   else draw(ctx, solid, sky, biome)
-}
-
-function shapedRockArt(solid: PlacedSolid, biome: Biome) {
-  if ((solid.kind ?? 'rock') !== 'rock' || (!solid.shape && solid.angle === undefined)) return null
-  return SHAPED_GROUND_ART[biome]
-}
-
-// Any material in a round or lumpy outline: its art clipped to it and shaded as a ball lit from the upper
-// left; round ones get a lit rim.
-function drawShaped(ctx: CanvasRenderingContext2D, solid: Rect, shape: Shape, draw: () => void) {
-  const rx = solid.w / 2
-  const ry = solid.h / 2
-  const cx = solid.x + rx
-  const cy = solid.y + ry
-  ctx.save()
-  ctx.clip(outlinePath({ ...solid, shape }))
-  draw()
-  const reach = Math.max(rx, ry) * 1.5
-  const light = ctx.createRadialGradient(cx - rx * 0.4, cy - ry * 0.45, 0, cx - rx * 0.25, cy - ry * 0.3, reach)
-  light.addColorStop(0, 'rgba(255,248,235,0.22)')
-  light.addColorStop(0.35, 'rgba(255,248,235,0)')
-  light.addColorStop(0.7, 'rgba(0,0,0,0.25)')
-  light.addColorStop(1, 'rgba(0,0,0,0.7)')
-  ctx.fillStyle = light
-  ctx.fillRect(solid.x, solid.y, solid.w, solid.h)
-  ctx.restore()
-  if (shape !== 'round') return
-  ctx.strokeStyle = COLOR.lip
-  ctx.lineWidth = 1.5
-  ctx.beginPath()
-  ctx.ellipse(cx, cy, rx - 0.75, ry - 0.75, 0, 1.05 * Math.PI, 1.6 * Math.PI)
-  ctx.stroke()
-}
-
-// Upright, in world units: the rect, or the round or lumpy outline inside it.
-export function outlinePath({ x: left, y: top, w, h, shape }: Rect & { shape?: Shape }) {
-  const path = new Path2D()
-  if (!shape) {
-    path.rect(left, top, w, h)
-    return path
-  }
-  for (const [x, y] of outlineOf(shape, w, h).points) path.lineTo(left + x, top + y)
-  path.closePath()
-  return path
 }
 
 export function drawRock(ctx: CanvasRenderingContext2D, solid: Rect, sky: Sky, biome: Biome) {

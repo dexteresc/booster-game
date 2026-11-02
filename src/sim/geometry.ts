@@ -27,20 +27,13 @@ function insideUpright({ x: left, y: top, w, h, shape }: Solid, x: number, y: nu
   return !shape || reach(outlineOf(shape, w, h), x - left, y - top) <= 1
 }
 
-// The top a rocket can stand on at x: its height and steepness as rise over run (1 = 45°).
-// Nothing stands on the sea or on a spinning solid.
-export function topAt(solid: Solid, x: number): Surface | null {
+// The edge at x a rocket stands on (side -1, the top) or a cannon hangs from (side 1, the underside): its
+// height and steepness as rise over run (1 = 45°). Nothing stands on or hangs from the sea or a spinning solid.
+export function surfaceAt(solid: Solid, x: number, side: -1 | 1): Surface | null {
   if (solid.kind === 'water' || solid.spin) return null
-  if (!solid.shape) return { y: solid.y, slope: 0 }
-  const top = edgeAt(outlineOf(solid.shape, solid.w, solid.h).points, x - solid.x, -1)
-  return { y: solid.y + top.y, slope: top.slope }
-}
-
-// The height of the underside at x, for hanging things from. Nothing hangs from the sea or a spinning solid.
-export function bottomAt(solid: Solid, x: number): number | null {
-  if (solid.kind === 'water' || solid.spin) return null
-  if (!solid.shape) return solid.y + solid.h
-  return solid.y + edgeAt(outlineOf(solid.shape, solid.w, solid.h).points, x - solid.x, 1).y
+  if (!solid.shape) return { y: side < 0 ? solid.y : solid.y + solid.h, slope: 0 }
+  const edge = edgeAt(outlineOf(solid.shape, solid.w, solid.h).points, x - solid.x, side)
+  return { y: solid.y + edge.y, slope: edge.slope }
 }
 
 // The polygon edge crossing px that is furthest up (side -1) or down (side 1).

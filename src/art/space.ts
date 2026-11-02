@@ -1,4 +1,5 @@
 import { TAU, additive, glowDot, rand } from './brush.ts'
+import { context2d } from '../dom.ts'
 import type { Planet, Sky } from './theme.ts'
 import type { GameMap } from '../maps/parse.ts'
 
@@ -9,11 +10,8 @@ type Body = { x: number; y: number; r: number; tilt: number }
 type Giant = Extract<Planet, { kind: 'giant' }>
 
 const NEBULA = { margin: 600, scale: 1 / 8 } // nebula glows are soft, so they're baked small once
-const RINGS = [
-  { scale: 1.55, width: 6, color: 'rgba(230,205,170,0.55)' },
-  { scale: 1.75, width: 10, color: 'rgba(200,170,135,0.45)' },
-  { scale: 2.0, width: 5, color: 'rgba(240,220,190,0.3)' },
-]
+const RINGS = [[1.55, 6, 'rgba(230,205,170,0.55)'], [1.75, 10, 'rgba(200,170,135,0.45)'], [2.0, 5, 'rgba(240,220,190,0.3)']] as const // radius, width
+const NIGHT = [[0, 'rgba(255,250,235,0.12)'], [0.45, 'rgba(0,0,8,0)'], [0.8, 'rgba(2,2,12,0.85)'], [1, 'rgba(2,2,12,0.97)']] as const // lit → dark
 
 // kind 'giant': banded, with a storm spot and rings; 'moon': plain.
 export function drawPlanet(ctx: CanvasRenderingContext2D, planet: Planet, sky: Sky, { width, height }: Size) {
@@ -58,10 +56,7 @@ function nightSide(ctx: CanvasRenderingContext2D, { x, y, r }: Body, toSun: numb
   const lx = x + Math.cos(toSun) * r * 0.55
   const ly = y + Math.sin(toSun) * r * 0.55
   const shade = ctx.createRadialGradient(lx, ly, r * 0.2, lx, ly, r * 1.7)
-  shade.addColorStop(0, 'rgba(255,250,235,0.12)')
-  shade.addColorStop(0.45, 'rgba(0,0,8,0)')
-  shade.addColorStop(0.8, 'rgba(2,2,12,0.85)')
-  shade.addColorStop(1, 'rgba(2,2,12,0.97)')
+  for (const [at, color] of NIGHT) shade.addColorStop(at, color)
   ctx.fillStyle = shade
   ctx.fillRect(x - r, y - r, r * 2, r * 2)
 }
@@ -69,11 +64,11 @@ function nightSide(ctx: CanvasRenderingContext2D, { x, y, r }: Body, toSun: numb
 // half: 'back' is the arc behind the planet, 'front' the one crossing in front of it.
 function drawRing(ctx: CanvasRenderingContext2D, { x, y, r, tilt }: Body, half: 'back' | 'front') {
   const [from, to] = half === 'back' ? [Math.PI, TAU] : [0, Math.PI]
-  for (const ring of RINGS) {
-    ctx.strokeStyle = ring.color
-    ctx.lineWidth = ring.width
+  for (const [scale, width, color] of RINGS) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
     ctx.beginPath()
-    ctx.ellipse(x, y, r * ring.scale, r * ring.scale * 0.28, tilt, from, to)
+    ctx.ellipse(x, y, r * scale, r * scale * 0.28, tilt, from, to)
     ctx.stroke()
   }
 }
@@ -83,8 +78,7 @@ export function bakeNebula({ width, height }: Size, colors: readonly string[]) {
   const canvas = document.createElement('canvas')
   canvas.width = Math.ceil((width + margin * 2) * scale)
   canvas.height = Math.ceil((height + margin * 2) * scale)
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('2d canvas unavailable')
+  const ctx = context2d(canvas)
   ctx.scale(scale, scale)
   ctx.translate(margin, margin)
   additive(ctx, () => {

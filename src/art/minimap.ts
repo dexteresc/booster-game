@@ -5,7 +5,7 @@ import type { Point } from './brush.ts'
 import { flagSpot, teamEntries } from '../sim/game.ts'
 import { COLOR, TEAM } from './theme.ts'
 import { turnedAbout } from './brush.ts'
-import { outlinePath } from './solids.ts'
+import { outlinePath } from './shapes.ts'
 
 // HUD minimap: the whole map in a corner. Drawn in CSS pixels.
 

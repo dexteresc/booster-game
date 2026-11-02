@@ -10,6 +10,7 @@
 // mode: 'pve' = co-op vs CPU, blue (players) steal red's flag past red cannons; left out = pve.
 // 'pvp' = team vs team: symmetric, both teams have a flag and cannons near their base.
 // gravity: share of config.world.gravity on this map (0.4 = floaty); left out = 1.
+// cannonRange: how far this map's cannons see and shoot; left out = config.cannon.range.
 // Returns a clean copy with only known fields; throws naming the bad field.
 
 import { SLOT_SPACING } from '../sim/rocket.ts'
@@ -38,6 +39,7 @@ export type GameMap = {
   mode: Mode
   biome: Biome
   gravity?: number
+  cannonRange?: number
   width: number
   height: number
   solids: Solid[]
@@ -53,6 +55,7 @@ export function parseMap(raw: unknown, label: string): GameMap {
     mode: oneOf(raw.mode ?? 'pve', MODES, at('mode')),
     biome: oneOf(raw.biome ?? 'desert', BIOME_NAMES, at('biome')),
     ...(raw.gravity !== undefined && { gravity: positive(raw.gravity, at('gravity')) }),
+    ...(raw.cannonRange !== undefined && { cannonRange: positive(raw.cannonRange, at('cannonRange')) }),
     width: positive(raw.width, at('width')),
     height: positive(raw.height, at('height')),
     solids: list(raw.solids, at('solids')).map((s, i) => solid(s, at(`solids[${i}]`))),

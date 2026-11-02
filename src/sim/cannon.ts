@@ -25,7 +25,8 @@ function pivot(cannon: CannonSpot) {
 }
 
 export function stepCannons(game: Game, config: Config, dt: number): void {
-  const { enabled, range, bulletSpeed, fireInterval, turnSpeed, aimTolerance, leadTarget } = config.cannon
+  const { enabled, bulletSpeed, fireInterval, turnSpeed, aimTolerance, leadTarget } = config.cannon
+  const range = game.map.cannonRange ?? config.cannon.range
   if (!enabled) return
   for (const cannon of game.cannons) {
     cannon.cooldown -= dt

@@ -37,6 +37,7 @@ assert.throws(broken((m) => { m.props = [{ kind: 'tree', x: 0, y: 0 }] }), /prop
 assert.equal('extra' in parseMap({ ...canyon, extra: 1 }, 'test'), false, 'unknown fields dropped')
 assert.throws(broken((m) => { m.biome = 'mars' }), /biome must be one of desert,jungle,nautic,belt/)
 assert.throws(broken((m) => { m.gravity = 0 }), /gravity must be positive/)
+assert.throws(broken((m) => { m.cannonRange = -1 }), /cannonRange must be positive/)
 assert.throws(broken((m) => { m.solids[1].shape = 'square' }), /solids\[1\]\.shape must be one of round,lumpy/)
 assert.throws(broken((m) => { m.solids[1].spin = 'fast' }), /solids\[1\]\.spin/)
 assert.throws(broken((m) => { m.mode = 'solo' }), /mode must be one of pve,pvp/)

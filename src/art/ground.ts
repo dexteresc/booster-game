@@ -1,27 +1,35 @@
 import { COLOR } from './theme.ts'
-import { TAU, hash } from './brush.ts'
-import { drawLitAsteroid } from './asteroid.ts'
+import { TAU } from './brush.ts'
 import type { GroundColors, Palette } from './theme.ts'
 import type { Biome, Rect } from '../maps/parse.ts'
-import type { PlacedSolid } from '../sim/geometry.ts'
 
 // The natural ground of each biome: what a 'rock' solid looks like there.
 
 type DrawGround = (ctx: CanvasRenderingContext2D, s: Rect, colors: GroundColors) => void
-type DrawShapedGround = (ctx: CanvasRenderingContext2D, s: PlacedSolid, colors: GroundColors) => void
 
 export const GROUND_ART: Record<Biome, DrawGround> = {
   desert: drawSandstone,
   jungle: drawMossStone,
   nautic: drawBasalt,
-  belt: drawAsteroidSlab,
+  belt: drawAsteroid,
 }
-// Ground that draws its round, lumpy or spinning rocks whole: outline, light and turn.
-export const SHAPED_GROUND_ART: Partial<Record<Biome, DrawShapedGround>> = { belt: drawLitAsteroid }
 
 const STRATA = 17
 const CRACK = 50 // moss stone: one crack per this many units of width
 const VINE = 60 // moss stone: one vine per this many units of width
+// Rock 05 by Rob Tuytel, Poly Haven (polyhaven.com/a/rock_05), CC0, with light from the upper left baked in
+// from its normal and ambient-occlusion maps.
+const ROCK_TEXTURE = new URL('./textures/rock_05.jpg', import.meta.url).href
+const ROCK_TEXTURE_SCALE = 0.8 // world units per texture pixel
+// Starts loading with the page, so it's usually there before a belt game lays out its background.
+const rock = {
+  image: typeof Image === 'undefined' ? null : Object.assign(new Image(), { src: ROCK_TEXTURE }),
+  loads: 0,
+}
+rock.image?.addEventListener('load', () => rock.loads++)
+
+// How many ground images have loaded: art baked from the ground art redraws when it changes.
+export const groundLoads = () => rock.loads
 
 // Layered sandstone with a sunlit lip.
 function drawSandstone(ctx: CanvasRenderingContext2D, solid: Rect, { body, lip }: GroundColors) {
@@ -94,21 +102,26 @@ function drawBasalt(ctx: CanvasRenderingContext2D, solid: Rect, { body, lip }: G
   ctx.fillRect(solid.x, solid.y, solid.w, 2)
 }
 
-// Square asteroid rock: speckled dust under a lit lip.
-function drawAsteroidSlab(ctx: CanvasRenderingContext2D, solid: Rect, { body, lip }: GroundColors) {
-  vertical(ctx, solid, body, Math.max(16, solid.h * 0.4))
-  const seed = Math.round(solid.x) * 7919 + Math.round(solid.y)
-  const specks = Math.min(500, (solid.w * solid.h) / 220)
-  for (const [shade, color] of [[0, COLOR.strata], [1, COLOR.seamLit]] as const) {
-    ctx.fillStyle = color
-    ctx.beginPath()
-    for (let i = shade; i < specks; i += 2) {
-      ctx.rect(solid.x + hash(seed, i, 1) * solid.w, solid.y + hash(seed, i, 2) * solid.h, 1.5, 1.5)
-    }
-    ctx.fill()
+// Asteroid rock: a lit photo texture, or the sky's ground colours until it has loaded.
+// Tiled with plain image draws on a world grid: a pattern of an image this big costs every canvas that
+// makes one a copy of it, and enough of those slow the whole page.
+function drawAsteroid(ctx: CanvasRenderingContext2D, solid: Rect, { body }: GroundColors) {
+  const { image } = rock
+  if (!image?.complete || !image.naturalWidth) {
+    vertical(ctx, solid, body, Math.max(16, solid.h * 0.4))
+    return
   }
-  ctx.fillStyle = lip
-  ctx.fillRect(solid.x, solid.y, solid.w, 2)
+  const tile = image.width * ROCK_TEXTURE_SCALE
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(solid.x, solid.y, solid.w, solid.h)
+  ctx.clip()
+  for (let x = Math.floor(solid.x / tile) * tile; x < solid.x + solid.w; x += tile) {
+    for (let y = Math.floor(solid.y / tile) * tile; y < solid.y + solid.h; y += tile) {
+      ctx.drawImage(image, x, y, tile + 1, tile + 1) // overlap by a unit, so no seam shows between tiles
+    }
+  }
+  ctx.restore()
 }
 
 // Top-lit gradient: colors = [top, mid, base], mid reached `lit` units down.

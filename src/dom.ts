@@ -12,8 +12,8 @@ export function find<T extends Element>(parent: ParentNode, selector: string): T
 }
 
 // A 2d context; only null if the canvas already has another kind of context.
-export function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const ctx = canvas.getContext('2d')
+export function context2d(canvas: HTMLCanvasElement, settings?: CanvasRenderingContext2DSettings) {
+  const ctx = canvas.getContext('2d', settings)
   if (!ctx) throw new Error('Canvas has no 2d context')
   return ctx
 }

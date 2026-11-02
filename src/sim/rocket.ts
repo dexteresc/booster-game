@@ -1,7 +1,7 @@
 import type { Config } from '../config.ts'
 import type { GameMap, Rect, Team } from '../maps/parse.ts'
 import type { Skin } from '../art/skins.ts'
-import { rotate, solidAt, topAt, wrapAngle } from './geometry.ts'
+import { rotate, solidAt, surfaceAt, wrapAngle } from './geometry.ts'
 
 export type Input = { left: boolean; right: boolean }
 
@@ -89,7 +89,7 @@ function resolveContact(rocket: Rocket, map: GameMap, safeLandingAngle: number, 
     const [x, y] = toWorld(rocket, p)
     const rect = solidAt(map, x, y)
     if (!rect) continue
-    const top = topAt(rect, x)
+    const top = surfaceAt(rect, x, -1)
     if (!top || y - top.y > maxSink || top.slope > MAX_SLOPE) return true
     surface = Math.min(surface, top.y)
   }

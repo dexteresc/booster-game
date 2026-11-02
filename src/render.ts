@@ -9,6 +9,7 @@ import { clamp, fitCanvas } from './art/brush.ts'
 import { createScenery, drawFlag, drawFlagPin, drawPad, randomWeather } from './art/scenery.ts'
 import { drawSolid } from './art/solids.ts'
 import { drawMinimap } from './art/minimap.ts'
+import { groundLoads } from './art/ground.ts'
 import { drawProp } from './art/props/index.ts'
 import { drawCannon, drawLaser, drawRocket } from './art/sprites.ts'
 import { createEffects } from './art/effects.ts'
@@ -30,6 +31,7 @@ type View = {
   trails: ReturnType<typeof createTrails>
   scenery: Scenery | null
   sceneryFor: GameView | null // the game it was laid out for
+  sceneryLoads: number // ground images loaded when it was laid out: rocks drawn before then lack their texture
   banner: { text: string; until: number } | null
   clock: number
   fps: number // smoothed, for the corner readout
@@ -69,6 +71,7 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config, settin
     trails: createTrails(),
     scenery: null,
     sceneryFor: null,
+    sceneryLoads: 0,
     banner: null,
     clock: 0,
     fps: 0,
@@ -100,12 +103,13 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config, settin
   }
 }
 
-// Random layout is made once per game.
+// Random layout is made once per game, and again if ground images load after it.
 function sceneryFor(view: View, game: GameView): Scenery {
-  if (view.sceneryFor === game && view.scenery) return view.scenery
+  if (view.sceneryFor === game && view.sceneryLoads === groundLoads() && view.scenery) return view.scenery
   const scenery = createScenery(game.map, randomWeather(game.map.biome))
   view.scenery = scenery
   view.sceneryFor = game
+  view.sceneryLoads = groundLoads()
   return scenery
 }
 
@@ -159,7 +163,6 @@ function drawWorld({ ctx, game, me, config, scenery, dt, w, h, scale, cam }: Fra
   for (const r of game.rockets) {
     if (r.alive) drawRocket(ctx, r, config.rocket.engineOffset, r === me)
   }
-  scenery.foreground(ctx, cam.x, cam.y, clock)
   scenery.water(ctx, cam.x, clock) // last: reflects everything above it
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   scenery.rain(ctx, cam.x * scale, cam.y * scale, clock)

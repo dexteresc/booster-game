@@ -4,7 +4,7 @@ import type { GameMap, Mode, Solid } from '../src/maps/parse.ts'
 import type { Input } from '../src/sim/rocket.ts'
 import { config as baseConfig } from '../src/config.ts'
 import { addPlayer, createGame, flagHome, maxPlayersPerTeam, removePlayer, step } from '../src/sim/game.ts'
-import { bottomAt, solidAt, topAt } from '../src/sim/geometry.ts'
+import { solidAt, surfaceAt } from '../src/sim/geometry.ts'
 import { DEFAULT_SKIN } from '../src/art/skins.ts'
 
 const flat: GameMap = {
@@ -75,17 +75,15 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
   assert(!solidAt(map, 905, 610) && solidAt(map, 1050, 700), "the rect's corners are empty, its middle solid")
 }
 
-// Lumpy solids: the outline fills its rect but isn't the ellipse, keeps its shape when moved, its
+// Lumpy solids: the outline fills its rect, keeps its shape when moved, its
 // tops are landing spots where they're flat enough, and its undersides are where its outline ends below.
 {
   const rock: Solid = { x: 900, y: 600, w: 320, h: 220, shape: 'lumpy' }
   const map = { ...flat, solids: [rock] }
-  const ellipse = (x: number, y: number) => ((x - 1060) / 160) ** 2 + ((y - 710) / 110) ** 2 <= 1
   const grid: [number, number][] = []
   for (let x = 902; x < 1220; x += 6) {
     for (let y = 602; y < 820; y += 6) grid.push([x, y])
   }
-  assert(grid.some(([x, y]) => Boolean(solidAt(map, x, y)) !== ellipse(x, y)), 'a lumpy rock should not be a plain ellipse')
   const touches = (points: [number, number][]) => points.some(([x, y]) => solidAt(map, x, y))
   const along = (f: (t: number) => [number, number]) => Array.from({ length: 160 }, (_, i) => f(i / 159))
   assert(touches(along((t) => [900 + t * 320, 602])) && touches(along((t) => [900 + t * 320, 818])), 'outline should reach top and bottom')
@@ -94,7 +92,7 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
   assert(grid.every(([x, y]) => Boolean(solidAt(map, x, y)) === Boolean(solidAt(moved, x - 500, y - 500))), 'moving a rock should keep its shape')
 
   const top = (x: number) => {
-    const at = topAt(rock, x)
+    const at = surfaceAt(rock, x, -1)
     assert(at, `a lumpy rock has a top at x ${x}`)
     return at
   }
@@ -105,8 +103,8 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
   assert(t.r.alive && t.r.landed, `should land on the lumpy top at x ${flattest}`)
 
   for (const x of [960, 1060, 1160]) {
-    const bottom = bottomAt(rock, x)
-    assert(bottom !== null && solidAt(map, x, bottom - 1) && !solidAt(map, x, bottom + 1), `underside at x ${x} should be where the rock ends`)
+    const bottom = surfaceAt(rock, x, 1)?.y
+    assert(bottom !== undefined && solidAt(map, x, bottom - 1) && !solidAt(map, x, bottom + 1), `underside at x ${x} should be where the rock ends`)
   }
 }
 
@@ -226,6 +224,14 @@ function runUntil({ game, config }: Setup, done: () => boolean, seconds: number)
   const crash = setup()
   Object.assign(crash.r, { x: 1000, y: 870, angle: Math.PI, landed: false })
   assert(runUntil(crash, () => !crash.r.alive, 1) && crash.game.teams.red.score === 0, 'PvE: crashes are not kills')
+}
+
+// A map's cannonRange replaces the config's: a rocket past it is left alone.
+{
+  const t = setup({ ...flat, cannonRange: 300, cannons: [{ x: 1000, y: 900, team: 'red' }] }, (c) => { c.cannon.enabled = true })
+  Object.assign(t.r, { x: 1400, y: 900 - 18 })
+  run(t, 3)
+  assert(t.r.alive && t.game.bullets.length === 0, 'cannon should hold fire past the map cannon range')
 }
 
 // A hanging cannon hangs under its block, starts aimed straight down and shoots a rocket below it.

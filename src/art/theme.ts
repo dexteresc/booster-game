@@ -203,12 +203,10 @@ const SPACE = {
   ],
   nebula: ['rgba(120,60,190,0.5)', 'rgba(40,110,200,0.45)', 'rgba(210,70,130,0.35)'],
   cloud: null,
-  mesas: ['#2a2733', '#3a3442', '#4a4250', '#5c525c'], // distant rocks, far → near
-  haze: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
+  mesas: ['#16141d', '#1d1a25', '#25212e', '#2e2937'], // distant rocks, far → near
   windows: 0,
-  dust: '#cfc6ff', // foreground motes
-  dustRock: ['#2a2430', '#1e1a24', '#141018'], // out-of-focus rocks in front of the action
-  ground: { ...EARTH.night.ground, belt: { body: ['#b29a8a', '#76625a', '#3c302e'], lip: '#ffd6b0' } },
+  haze: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
+  ground: { ...EARTH.night.ground, belt: { body: ['#f0e2d2', '#a8968a', '#4a3c3a'], lip: '#e8c09c' } },
   metal: GUNMETAL,
   panel: ['#fff8e6', '#efe4c8', '#c9bb9a'],
   concrete: ['#c8c6c2', '#96948f', '#64625e'],
@@ -225,7 +223,7 @@ export const SKIES = { ...EARTH, space: SPACE } as const satisfies Record<string
   panel: Palette
 }>
 
-type SpaceOnly = Pick<typeof SPACE, 'starDepth' | 'planets' | 'nebula' | 'dust' | 'dustRock'>
+type SpaceOnly = Pick<typeof SPACE, 'starDepth' | 'planets' | 'nebula'>
 export type Time = keyof typeof SKIES
 export type Sky = (typeof SKIES)[Time] & Partial<SpaceOnly>
 export type Planet = (typeof SPACE)['planets'][number]
