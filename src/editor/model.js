@@ -1,7 +1,7 @@
 import { propBounds } from '../art/props/index.js'
 import { MIN_PAD_WIDTH, SHAPES } from '../maps/parse.js'
 import { cannonPedestal } from '../sim/cannon.js'
-import { topAt } from '../sim/geometry.js'
+import { bottomAt, solidAt, topAt } from '../sim/geometry.js'
 
 // Editor state and edits on it. No DOM here.
 // An item is { kind: 'solid' | 'pad' | 'cannon' | 'prop', obj } where obj lives inside editor.map.
@@ -9,7 +9,7 @@ import { topAt } from '../sim/geometry.js'
 
 export const GRID = 10
 const CANNON_HEIGHT = 30 // click box: pedestal wide, this tall
-const SURFACE_REACH = 40 // a cannon or prop dropped this far below a top edge still lands on it
+const SURFACE_REACH = 40 // a cannon or prop dropped this far past a surface still lands on it
 
 export function createEditor(name, map) {
   return {
@@ -59,13 +59,25 @@ export function undo(editor) {
   editor.selected = null
 }
 
-// Mirrors the selected prop to face the other way. Left out of the file when false.
+export const isFlippable = (item) => item?.kind === 'prop' || item?.kind === 'cannon'
+
+// Mirrors the selected prop to face the other way, or turns the selected cannon over to hang under
+// the block it stands on (and back). Left out of the file when false.
 export function flipSelected(editor) {
   const { selected } = editor
-  if (selected?.kind !== 'prop') return
+  if (!isFlippable(selected)) return
   remember(editor)
-  if (selected.obj.flip) delete selected.obj.flip
+  if (selected.kind === 'cannon') turnOver(editor.map, selected.obj)
+  else if (selected.obj.flip) delete selected.obj.flip
   else selected.obj.flip = true
+}
+
+function turnOver(map, c) {
+  const block = solidAt(map, c.x, c.hang ? c.y - 1 : c.y + 1)
+  if (c.hang) delete c.hang
+  else c.hang = true
+  if (!map.solids.includes(block)) return
+  c.y = (c.hang ? bottomAt(block, c.x) : topAt(block, c.x)?.y) ?? c.y
 }
 
 // Cycles the selected solid square → round → lumpy → square. Left out of the file when square.
@@ -141,10 +153,19 @@ function addStanding(editor, kind, obj, at) {
   return obj
 }
 
-// Cannons and props stand on the nearest top surface under the pointer.
+// Cannons and props stand on the nearest top surface under the pointer; a hanging cannon hangs from
+// the nearest underside above it.
 export function placeOnSurface(map, obj, at) {
   obj.x = snap(at.x)
-  obj.y = surfaceBelow(map, obj.x, at.y) ?? snap(at.y)
+  obj.y = (obj.hang ? undersideAbove(map, obj.x, at.y) : surfaceBelow(map, obj.x, at.y)) ?? snap(at.y)
+}
+
+function undersideAbove(map, x, y) {
+  const bottoms = map.solids
+    .filter((s) => x >= s.x && x <= s.x + s.w)
+    .map((s) => bottomAt(s, x))
+    .filter((bottom) => bottom !== null && bottom <= y + SURFACE_REACH)
+  return bottoms.length ? Math.max(...bottoms) : null
 }
 
 function surfaceBelow(map, x, y) {
@@ -174,7 +195,7 @@ export function boundsOf({ kind, obj }) {
   if (kind === 'prop') return propBounds(obj)
   if (kind !== 'cannon') return obj
   const { x, w } = cannonPedestal(obj)
-  return { x, y: obj.y - CANNON_HEIGHT, w, h: CANNON_HEIGHT }
+  return { x, y: obj.hang ? obj.y : obj.y - CANNON_HEIGHT, w, h: CANNON_HEIGHT }
 }
 
 // Which edges of rect r are within tol of p: { l, r, t, b } or null.

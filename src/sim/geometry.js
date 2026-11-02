@@ -28,19 +28,27 @@ function insideUpright(s, x, y) {
 export function topAt(s, x) {
   if (s.kind === 'water' || s.spin) return null
   if (!s.shape) return { y: s.y, slope: 0 }
-  const top = topEdge(outlineOf(s.shape, s.w, s.h).points, x - s.x)
+  const top = edgeAt(outlineOf(s.shape, s.w, s.h).points, x - s.x, -1)
   return { y: s.y + top.y, slope: top.slope }
 }
 
-function topEdge(points, px) {
-  let y = Infinity
+// The height of the underside at x, for hanging things from. Nothing hangs from the sea or a spinning solid.
+export function bottomAt(s, x) {
+  if (s.kind === 'water' || s.spin) return null
+  if (!s.shape) return s.y + s.h
+  return s.y + edgeAt(outlineOf(s.shape, s.w, s.h).points, x - s.x, 1).y
+}
+
+// The polygon edge crossing px that is furthest up (side -1) or down (side 1).
+function edgeAt(points, px, side) {
+  let y = -side * Infinity
   let slope = Infinity
   for (let i = 0; i < points.length; i++) {
     const [x0, y0] = points[i]
     const [x1, y1] = points[(i + 1) % points.length]
     if (px < x0 === px < x1) continue
     const at = y0 + ((px - x0) / (x1 - x0)) * (y1 - y0)
-    if (at < y) [y, slope] = [at, Math.abs((y1 - y0) / (x1 - x0))]
+    if ((at - y) * side > 0) [y, slope] = [at, Math.abs((y1 - y0) / (x1 - x0))]
   }
   return { y, slope }
 }

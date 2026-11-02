@@ -1,6 +1,6 @@
 import { parseMap } from '../maps/parse.js'
 import { BIOMES } from '../art/theme.js'
-import { createEditor, flipSelected, isDirty, isRect, mirrorLeftHalf, newMap, remember, removeSelected, shapeSelected, undo } from './model.js'
+import { createEditor, flipSelected, isDirty, isFlippable, isRect, mirrorLeftHalf, newMap, remember, removeSelected, shapeSelected, undo } from './model.js'
 import { attachPointer } from './pointer.js'
 import { drawEditor } from './draw.js'
 import { TOOL_KEYS, buildPalette } from './palette.js'
@@ -216,7 +216,7 @@ function refresh() {
 }
 
 function refreshSelectionButtons(selected) {
-  ui.flip.disabled = selected?.kind !== 'prop'
+  ui.flip.disabled = !isFlippable(selected)
   ui.shape.disabled = selected?.kind !== 'solid'
   ui.remove.disabled = !selected || selected.kind === 'pad'
 }
@@ -242,7 +242,7 @@ function describe(item) {
   const { kind, obj } = item
   const what = obj.kind ?? (kind === 'solid' ? 'rock' : kind)
   const size = isRect(item) ? ` ${obj.w}×${obj.h}` : ''
-  return `${obj.shape ? `${obj.shape} ` : ''}${what}${obj.flip ? ' (flipped)' : ''} at ${obj.x}, ${obj.y}${size}`
+  return `${obj.shape ? `${obj.shape} ` : ''}${what}${obj.flip ? ' (flipped)' : ''}${obj.hang ? ' (hanging)' : ''} at ${obj.x}, ${obj.y}${size}`
 }
 
 function showStatus(text, error = false) {

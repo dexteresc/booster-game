@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { config as baseConfig } from '../src/config.js'
-import { solidAt, topAt } from '../src/sim/geometry.js'
+import { bottomAt, solidAt, topAt } from '../src/sim/geometry.js'
 import { addPlayer, createGame, flagHome, maxPlayersPerTeam, removePlayer, step } from '../src/sim/game.js'
 
 const flat = {
@@ -65,8 +65,8 @@ function runUntil({ game, config }, done, seconds) {
   assert(!solidAt(map, 905, 610) && solidAt(map, 1050, 700), "the rect's corners are empty, its middle solid")
 }
 
-// Lumpy solids: the outline fills its rect but isn't the ellipse, keeps its shape when moved, and its
-// tops are landing spots where they're flat enough.
+// Lumpy solids: the outline fills its rect but isn't the ellipse, keeps its shape when moved, its
+// tops are landing spots where they're flat enough, and its undersides are where its outline ends below.
 {
   const rock = { x: 900, y: 600, w: 320, h: 220, shape: 'lumpy' }
   const map = { ...flat, solids: [rock] }
@@ -86,6 +86,11 @@ function runUntil({ game, config }, done, seconds) {
   Object.assign(t.r, { x: flattest, y: topAt(rock, flattest).y - 100, landed: false })
   runUntil(t, () => t.r.landed || !t.r.alive, 3)
   assert(t.r.alive && t.r.landed, `should land on the lumpy top at x ${flattest}`)
+
+  for (const x of [960, 1060, 1160]) {
+    const bottom = bottomAt(rock, x)
+    assert(solidAt(map, x, bottom - 1) && !solidAt(map, x, bottom + 1), `underside at x ${x} should be where the rock ends`)
+  }
 }
 
 // Spinning solids turn about their center as game time passes, bullets and hulls meet them where they are
@@ -203,6 +208,16 @@ function runUntil({ game, config }, done, seconds) {
   const crash = setup()
   Object.assign(crash.r, { x: 1000, y: 870, angle: Math.PI, landed: false })
   assert(runUntil(crash, () => !crash.r.alive, 1) && crash.game.teams.red.score === 0, 'PvE: crashes are not kills')
+}
+
+// A hanging cannon hangs under its block, starts aimed straight down and shoots a rocket below it.
+{
+  const ceiling = { x: 900, y: 300, w: 200, h: 100 }
+  const t = setup({ ...flat, solids: [...flat.solids, ceiling], cannons: [{ x: 1000, y: 400, team: 'red', hang: true }] }, (c) => (c.cannon.enabled = true))
+  assert(t.game.map.solids.includes(solidAt(t.game.map, 1000, 405)) && solidAt(t.game.map, 1000, 405) !== ceiling, 'pedestal hangs below the block')
+  assert.equal(t.game.cannons[0].aim, Math.PI / 2, 'hanging cannon rests aimed down')
+  Object.assign(t.r, { x: 1000, y: 900 - 18 })
+  assert(runUntil(t, () => !t.r.alive, 3), 'hanging cannon should hit a rocket below')
 }
 
 // PvE: players have no flag. PvP: both do, and yours must be home to capture.

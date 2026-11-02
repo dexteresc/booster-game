@@ -5,7 +5,7 @@
 // (asteroids); left out = rect. spin: turns the solid about its rect's center, radians per
 // second, clockwise; a spinning solid can't be landed on.
 // Props are decoration standing on a surface, no collision; `flip: true` mirrors one to face the
-// other way. Cannon x,y = the surface it stands on.
+// other way. Cannon x,y = the surface it stands on; `hang: true` hangs one upside down from the underside at x,y.
 // biome picks how rock, the hills and the weather look (src/art/theme.js BIOMES); left out = desert.
 // mode: 'pve' = co-op vs CPU, blue (players) steal red's flag past red cannons; left out = pve.
 // 'pvp' = team vs team: symmetric, both teams have a flag and cannons near their base.
@@ -56,7 +56,7 @@ function pad(p, path) {
 }
 
 function cannon(c, path) {
-  return { x: finite(c?.x, `${path}.x`), y: finite(c?.y, `${path}.y`), team: oneOf(c?.team, TEAMS, `${path}.team`) }
+  return { x: finite(c?.x, `${path}.x`), y: finite(c?.y, `${path}.y`), team: oneOf(c?.team, TEAMS, `${path}.team`), ...(c.hang === true && { hang: true }) }
 }
 
 function prop(p, path) {

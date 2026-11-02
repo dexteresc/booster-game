@@ -1,6 +1,6 @@
 import { flagHome, hasFlag } from '../sim/game.js'
 import { PROP_KINDS } from '../maps/parse.js'
-import { cannonPedestal } from '../sim/cannon.js'
+import { cannonPedestal, restingAim } from '../sim/cannon.js'
 import { COLOR, SKIES } from '../art/theme.js'
 import { fitCanvas } from '../art/brush.js'
 import { drawFlag, drawPad } from '../art/scenery.js'
@@ -80,7 +80,7 @@ function standing(bounds, biome, draw) {
 
 function drawStandingCannon(ctx, c, biome, clock) {
   drawRock(ctx, cannonPedestal(c), SKY, biome)
-  drawCannon(ctx, { ...c, aim: -Math.PI / 2 }, false, clock)
+  drawCannon(ctx, { ...c, aim: restingAim(c) }, false, clock)
 }
 
 function drawSky(ctx, { width, height }, gradientHeight) {

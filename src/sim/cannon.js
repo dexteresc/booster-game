@@ -3,9 +3,18 @@ import { solidAt, wrapAngle } from './geometry.js'
 export const BARREL_LENGTH = 20
 export const PIVOT_HEIGHT = 14
 
-// Cannon x,y is the surface point it stands on.
+// Cannon x,y is the surface point it stands on, or with `hang` the underside point it hangs from.
 export function cannonPedestal(c) {
-  return { x: c.x - 14, y: c.y - 12, w: 28, h: 12 }
+  return { x: c.x - 14, y: c.hang ? c.y : c.y - 12, w: 28, h: 12 }
+}
+
+// Straight out from the surface it's on.
+export function restingAim(c) {
+  return c.hang ? Math.PI / 2 : -Math.PI / 2
+}
+
+function pivot(c) {
+  return { x: c.x, y: c.hang ? c.y + PIVOT_HEIGHT : c.y - PIVOT_HEIGHT }
 }
 
 export function stepCannons(game, config, dt) {
@@ -13,8 +22,7 @@ export function stepCannons(game, config, dt) {
   if (!enabled) return
   for (const cannon of game.cannons) {
     cannon.cooldown -= dt
-    const px = cannon.x
-    const py = cannon.y - PIVOT_HEIGHT
+    const { x: px, y: py } = pivot(cannon)
     const target = nearestEnemy(game.rockets, cannon.team, { x: px, y: py }, range)
     if (!target) continue
 

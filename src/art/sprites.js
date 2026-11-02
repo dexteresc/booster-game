@@ -155,8 +155,20 @@ function drawPlume(ctx, x, y) {
   glowDot(ctx, x, y + 14, { radius: 70, color: COLOR.flame[1], alpha: 0.16 }) // lights up whatever is near
 }
 
-// Ray-gun turret. firing: show a muzzle flash this frame.
+// Ray-gun turret. firing: show a muzzle flash this frame. A hanging one is the upright one mirrored about y.
 export function drawCannon(ctx, c, firing, clock) {
+  if (!c.hang) {
+    drawUprightCannon(ctx, c, firing, clock)
+    return
+  }
+  ctx.save()
+  ctx.translate(0, c.y * 2)
+  ctx.scale(1, -1)
+  drawUprightCannon(ctx, { ...c, hang: false, aim: -c.aim }, firing, clock)
+  ctx.restore()
+}
+
+function drawUprightCannon(ctx, c, firing, clock) {
   const { accent, laser } = TEAM[c.team]
   const p = cannonPedestal(c)
   ctx.fillStyle = shaded(ctx, p.x, p.x + p.w, COLOR.gunmetal)

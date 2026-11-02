@@ -40,5 +40,7 @@ assert.throws(broken((m) => (m.solids[1].spin = 'fast')), /solids\[1\]\.spin/)
 assert.throws(broken((m) => (m.mode = 'solo')), /mode must be one of pve,pvp/)
 const flipped = parseMap({ ...canyon, props: [{ kind: 'lamp', x: 1, y: 2, flip: true }, { kind: 'lamp', x: 1, y: 2, flip: 'yes' }] }, 'test').props
 assert.deepEqual(flipped, [{ kind: 'lamp', x: 1, y: 2, flip: true }, { kind: 'lamp', x: 1, y: 2 }], 'flip kept only when true')
+const hanging = parseMap({ ...canyon, cannons: [{ x: 1, y: 2, team: 'red', hang: true }, { x: 1, y: 2, team: 'red', hang: 1 }] }, 'test').cannons
+assert.deepEqual(hanging, [{ x: 1, y: 2, team: 'red', hang: true }, { x: 1, y: 2, team: 'red' }], 'hang kept only when true')
 
 console.log('maps ok')

@@ -1,5 +1,5 @@
 import { FOOT_Y, NO_INPUT, SLOT_SPACING, spawnRocket, stepRocket } from './rocket.js'
-import { cannonPedestal, stepBullets, stepCannons } from './cannon.js'
+import { cannonPedestal, restingAim, stepBullets, stepCannons } from './cannon.js'
 
 // Pure simulation: no DOM, no randomness, fixed timestep. Same inputs → same
 // state, so it can run unchanged on a server or in lockstep between peers.
@@ -26,7 +26,7 @@ export function createGame(map, players, mode = 'pve') {
     map: { ...map, solids: [...map.solids.map((s) => (s.spin ? { ...s, angle: 0 } : s)), ...pads, ...map.cannons.map(cannonPedestal)] },
     teams: Object.fromEntries(Object.keys(map.bases).map((team) => [team, { score: 0, flagCarrier: null, flag: hasFlag(mode, team) }])),
     rockets: [],
-    cannons: map.cannons.map((c) => ({ ...c, aim: -Math.PI / 2, cooldown: 0 })),
+    cannons: map.cannons.map((c) => ({ ...c, aim: restingAim(c), cooldown: 0 })),
     bullets: [],
   }
   for (const p of players) addPlayer(game, p)
