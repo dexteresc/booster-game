@@ -167,15 +167,6 @@
       .menu-appearance {
         margin-left: 6px;
       }
-      .menu-option {
-        font-size: 13px;
-        opacity: 0.85;
-      }
-      .panel input[type='checkbox'] {
-        width: auto;
-        margin: 0 6px 0 0;
-        vertical-align: middle;
-      }
       dialog.panel {
         padding: 20px;
       }
@@ -274,30 +265,52 @@
       .lobby-room {
         opacity: 0.8;
       }
-      #tuning {
-        position: fixed;
-        top: 48px;
-        right: 8px;
-        max-height: calc(100dvh - 64px);
-        overflow-y: auto;
-        background: rgba(10, 14, 30, 0.9);
-        color: #dde3f0;
-        font-size: 12px;
-        padding: 8px;
-        border-radius: 6px;
+      .settings-tabs {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        margin-bottom: 14px;
       }
-      #tuning fieldset {
+      .settings-tabs button[aria-selected='true'] {
+        border-color: #ff7a1a;
+        background: rgba(255, 122, 26, 0.3);
+      }
+      .settings-page {
+        text-align: left;
+        font-size: 13px;
+        margin-bottom: 14px;
+      }
+      .settings-page[hidden] {
+        display: none;
+      }
+      .settings-page fieldset {
         border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
         margin: 0 0 8px;
       }
-      #tuning label {
+      .settings-page legend {
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        opacity: 0.7;
+      }
+      .settings-page label {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         gap: 12px;
-        margin: 3px 0;
+        margin: 4px 0;
       }
-      #tuning input[type='number'] {
+      .settings-page input[type='number'] {
         width: 70px;
+        margin: 0;
+      }
+      .settings-page input[type='checkbox'] {
+        width: auto;
+        margin: 0;
+      }
+      .settings-page p {
+        margin: 0 0 10px;
+        opacity: 0.7;
       }
     </style>
   </head>
@@ -307,7 +320,7 @@
       <select id="map" aria-label="Map" hidden></select>
       <button id="invite" aria-live="polite" hidden>Invite</button>
       <button id="leave" aria-live="polite" hidden>Leave</button>
-      <button id="tune-toggle" aria-label="Tuning panel">⚙</button>
+      <button id="settings-toggle" aria-label="Settings">⚙</button>
     </div>
     <div id="menu" class="panel" hidden>
       <h1>BOOSTER</h1>
@@ -315,7 +328,6 @@
         Your name <input id="player-name" maxlength="16" autocomplete="nickname" placeholder="Pilot" />
         <button type="button" class="menu-appearance">🎨 Appearance</button>
       </label>
-      <label class="menu-option"><input type="checkbox" id="glow" />Glow effects: bloom and vignette. Pretty, costs frame rate</label>
       <div class="menu-modes">
         <button data-mode="pve">
           <canvas></canvas>
@@ -348,7 +360,23 @@
       <form method="dialog"><button class="skin-done">Done</button></form>
     </dialog>
     <div id="status" hidden></div>
-    <div id="tuning" hidden></div>
+    <dialog id="settings" class="panel" aria-label="Settings">
+      <h1>SETTINGS</h1>
+      <div class="settings-tabs" role="tablist">
+        <button type="button" role="tab" data-tab="gameplay">Gameplay</button>
+        <button type="button" role="tab" data-tab="graphics">Graphics</button>
+      </div>
+      <section class="settings-page" data-tab="gameplay" role="tabpanel">
+        <p>Live tunables for the game this browser runs. The host's values apply to everyone.</p>
+      </section>
+      <section class="settings-page" data-tab="graphics" role="tabpanel">
+        <p>Looks only. Saved in this browser.</p>
+        <label>Bloom: bright things glow. Costs frame rate <input type="checkbox" data-setting="bloom" /></label>
+        <label>Vignette: darker screen edges <input type="checkbox" data-setting="vignette" /></label>
+        <label>Show frame rate <input type="checkbox" data-setting="fps" /></label>
+      </section>
+      <form method="dialog"><button>Done</button></form>
+    </dialog>
     <script type="module" src="src/main.ts"></script>
   </body>
 </html>

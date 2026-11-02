@@ -42,6 +42,7 @@ type Frame = {
   game: GameView
   me: ShownRocket
   config: Config
+  settings: Settings
   scenery: Scenery
   dt: number
   dpr: number
@@ -55,8 +56,8 @@ type Frame = {
 
 // Render-only state (camera, particles, banners) lives here, never in the sim.
 // What things look like lives in src/art/; this file decides what goes where.
-// Player options that only change how things look. Mutated in place from the menu.
-export type Settings = { glow: boolean } // bloom and vignette: pretty, but costs frame rate
+// Player options that only change how things look. Edited in place from the settings dialog.
+export type Settings = { bloom: boolean; vignette: boolean; fps: boolean }
 
 export function createRenderer(canvas: HTMLCanvasElement, config: Config, settings: Settings) {
   const ctx = context2d(canvas)
@@ -87,14 +88,14 @@ export function createRenderer(canvas: HTMLCanvasElement, config: Config, settin
     if (!me) return // Joining: no rocket until the host's first snapshot.
 
     const layout = {
-      ctx, game, me, config, scenery, dt, dpr, w, h,
+      ctx, game, me, config, settings, scenery, dt, dpr, w, h,
       cw: w / dpr,
       ch: h / dpr,
       scale: Math.max(w, h) / config.view.size,
     }
     const frame = { ...layout, cam: followCamera(view, layout) }
     drawWorld(frame, view)
-    if (settings.glow) view.post(ctx, w, h, scenery.sky.bloom)
+    view.post(ctx, w, h, { bloom: settings.bloom ? scenery.sky.bloom : 0, vignette: settings.vignette })
     drawHud(frame, view)
   }
 }
@@ -185,7 +186,7 @@ function drawHud(frame: Frame, view: View) {
   const message = hudMessage(frame, view)
   if (message) drawMessage(frame, message)
   ctx.letterSpacing = '0px'
-  drawFps(frame, view.fps)
+  if (frame.settings.fps) drawFps(frame, view.fps)
 }
 
 function drawTouchZones({ ctx, me, cw, ch }: Frame) {

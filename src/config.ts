@@ -1,5 +1,5 @@
 // All gameplay tunables. The sim reads this every tick, so edits from the
-// tuning panel (press ` or tap ⚙) apply live. Units: px, seconds, radians.
+// settings dialog (press ` or tap ⚙, Gameplay tab) apply live. Units: px, seconds, radians.
 export const config = {
   tickRate: 120,
 

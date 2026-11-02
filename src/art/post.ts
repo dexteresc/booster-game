@@ -4,6 +4,7 @@ import { context2d } from '../dom.ts'
 // stars) glow onto what's around them, and a vignette that pulls the eye to the middle.
 
 type Size = { w: number; h: number }
+type Look = { bloom: number; vignette: boolean }
 
 const BLOOM_SCALE = 4 // bloom is worked out at 1/4 resolution
 const BLUR_SCALE = 4 // and softened by bouncing it through a buffer another 1/4 smaller
@@ -15,15 +16,17 @@ export function createPost() {
   const blurCtx = context2d(document.createElement('canvas'))
   let vignette: (Size & { fill: CanvasGradient }) | null = null
 
-  // strength: 0..1, how much bloom is added back.
-  return function finish(ctx: CanvasRenderingContext2D, w: number, h: number, strength: number) {
+  // bloom: 0..1, how much is added back; 0 skips it.
+  return function finish(ctx: CanvasRenderingContext2D, w: number, h: number, look: Look) {
     if (!w || !h) return // not laid out yet: an empty canvas can't be drawn from
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    if (strength > 0) bloom(ctx, [bctx, blurCtx], { w, h }, strength)
-    if (vignette?.w !== w || vignette.h !== h) vignette = { w, h, fill: vignetteFill(ctx, w, h) }
-    ctx.fillStyle = vignette.fill
-    ctx.fillRect(0, 0, w, h)
+    if (look.bloom > 0) bloom(ctx, [bctx, blurCtx], { w, h }, look.bloom)
+    if (look.vignette) {
+      if (vignette?.w !== w || vignette.h !== h) vignette = { w, h, fill: vignetteFill(ctx, w, h) }
+      ctx.fillStyle = vignette.fill
+      ctx.fillRect(0, 0, w, h)
+    }
     ctx.restore()
   }
 }

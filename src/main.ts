@@ -9,9 +9,9 @@ import { DEFAULT_MAP, maps } from './maps/index.ts'
 import { addPlayer, createGame, maxPlayersPerTeam, removePlayer, step } from './sim/game.ts'
 import { createLocalInput } from './input.ts'
 import { createRenderer } from './render.ts'
-import { createTuningPanel } from './tuning.ts'
+import { createSettingsDialog, loadSettings } from './settings.ts'
 import { cleanPilot, errorMessage, hostRoom, joinRoom } from './net.ts'
-import { loadPilot, loadSettings, showMenu } from './menu.ts'
+import { loadPilot, showMenu } from './menu.ts'
 import { storedProgress } from './progress.ts'
 import { unlockMessage } from './art/skins.ts'
 import { renderLobby, switchTeam, teamFor } from './lobby.ts'
@@ -35,7 +35,7 @@ const ui = {
 const input = createLocalInput(canvas, config.keys)
 const settings = loadSettings()
 const draw = createRenderer(canvas, config, settings)
-createTuningPanel(config)
+createSettingsDialog(config, settings)
 const progress = storedProgress() // skin unlocks, counted from what this screen shows
 
 let mode: Mode | null = null // picked in the menu
@@ -326,7 +326,7 @@ function openMenu(code: string) {
     onPick: (pickedMode: Mode, pilot: Pilot) => run(start(pickedMode, pilot), 'Starting the game'),
     onJoin: (pilot: Pilot) => run(join(code, pilot), `Joining ${code}`),
   }
-  showMenu(ui.menu, { joinCode: code, rules: config.rules, stats: progress.stats, settings, handlers })
+  showMenu(ui.menu, { joinCode: code, rules: config.rules, stats: progress.stats, handlers })
 }
 
 // For async work nobody awaits: a failure still reaches the console and the player.
